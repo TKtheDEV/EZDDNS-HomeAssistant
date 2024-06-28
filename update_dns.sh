@@ -5,8 +5,10 @@ update_dns_record() {
     local record_type=$2
     local record_value=$3
     echo "Updating ${record_type} record for ${fqdn} with value ${record_value}"
+    echo "Calling get_record_id function"
     local record_id
     record_id=$(get_record_id "${fqdn}" "${record_type}")
+    echo "Record ID fetched: ${record_id}"
 
     if [[ $? -ne 0 || -z "${record_id}" ]]; then
         local response

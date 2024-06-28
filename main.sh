@@ -1,8 +1,8 @@
 #!/usr/bin/with-contenv bashio
 
-source /path/to/config.sh
-source /path/to/cloudflare_api.sh
-source /path/to/update_dns.sh
+source config.sh
+source cloudflare_api.sh
+source update_dns.sh
 
 v4=""
 v4new=""

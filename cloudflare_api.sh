@@ -3,9 +3,11 @@
 get_record_id() {
     local fqdn=$1
     local record_type=$2
+    echo "Fetching record ID for ${fqdn} (${record_type})"
     local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${record_type}&name=${fqdn}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json")
+    echo "API Response: $response"
 
     if [[ $? -ne 0 || -z $response ]]; then
         echo "Failed to fetch record ID for ${fqdn} (${record_type}) from Cloudflare API"
