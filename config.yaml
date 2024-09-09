@@ -1,5 +1,5 @@
 ---
-version: 0.5.12
+version: 0.6
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -17,21 +17,21 @@ init: false
 options:
   zoneId: null
   apiToken: null
-  fqdn: null
-  v4En: false
+  hostfqdn: null
+  v4Enabled: false
   prefixLength: 56
   refresh: 300
-  legacy: false
-  customEn: false
-  records: []
+  legacyMode: false
+  customEnabled: false
+  customRecords: []
 schema:
   zoneId: str?
   apiToken: password
-  fqdn: str?
-  v4En: bool
+  hostfqdn: str?
+  v4Enabled: bool
   prefixLength: list(48|52|56|60|64)
-  refresh: "int(20,)"
-  legacy: bool
-  customEn: bool
-  records:
+  refresh: "int(60,)"
+  legacyMode: bool
+  customEnabled: bool
+  customRecords:
     - str

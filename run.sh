@@ -1,94 +1,111 @@
 #!/usr/bin/with-contenv bashio
 
+zoneId=$(bashio::config "zoneId")
+apiToken=$(bashio::config "apiToken")
+hostfqdn=$(bashio::config "hostfqdn")
+v4Enabled=$(bashio::config "v4Enabled")
+prefixLength=$(bashio::config "prefixLength")
+refresh=$(bashio::config "refresh")
+legacyMode=$(bashio::config "legacyMode")
+customEnabled=$(bashio::config "customEnabled")
+customRecords=$(bashio::config "customRecords")
+
 v4=""
 v4new=""
 v6=""
 v6new=""
 prefix=""
-prefixLength=$(bashio::config "prefixLength")
-legacy=$(bashio::config "legacy")
-v4en=$(bashio::config "v4En")
-customen=$(bashio::config "customEn")
-hafqdn=$(bashio::config "fqdn")
-refresh=$(bashio::config "refresh")
-zoneId=$(bashio::config "zoneId")
-apiToken=$(bashio::config "apiToken")
-records=$(bashio::config "records")
 
 if [[ ${prefixLength} == 64 ]]; then
-    prefixCount=$(( (prefixLength / 4) + 4 ))
-else
     prefixCount=$(( (prefixLength / 4) + 3 ))
+else
+    prefixCount=$(( (prefixLength / 4) + 2 ))
 fi
 
-get_record_id() {
-    echo get_record_begin
+cf_get_record_id() {
     fqdn=$1
     record_type=$2
-    response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${record_type}&name=${fqdn}" \
+    api_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=${record_type}&name=${fqdn}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json")
-    echo $response
     if [[ $? -ne 0 ]]; then
+        echo "Failed to communicate with Cloudflare API"
+        return 1
+    fi
+    success=$(echo "$api_response" | grep -o '"success":true')
+    if [[ -z "$success" ]]; then
         echo "Failed to fetch record ID for ${fqdn} (${record_type}) from Cloudflare API"
         return 1
     fi
-    echo get_record_out
-    echo "$response" | grep -oE '"id":"\K[^"]+'
+    record_id=$(echo "$api_response" | grep -oE '"id":"[^"]+"' | head -n 1 | cut -d':' -f2 | tr -d '"')
+    echo "$record_id"
+    return 0
 }
 
-update_record() {
-    record_id=$1
-    fqdn=$2
-    record_type=$3
-    record_value=$4
+cf_create_record() {
+    fqdn=$1
+    record_type=$2
+    record_value=$3
+    api_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records" \
+        -H "Authorization: Bearer ${apiToken}" \
+        -H "Content-Type: application/json" \
+        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":60,\"proxied\":false}")
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to communicate with Cloudflare API"
+        return 1
+    fi
+    success=$(echo "$api_response" | grep -o '"success":true')
+    if [[ -z "$success" ]]; then
+        echo "Failed to create ${record_type} record for ${fqdn} via Cloudflare API."
+        return 1
+    else 
+        echo "Created ${record_type} record for ${fqdn} with IP ${record_value}."
+    fi
+    return 0
+}
+
+cf_update_record() {
+    fqdn=$1
+    record_type=$2
+    record_value=$3
+    record_id=$4
     response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record_id}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
         --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":60,\"proxied\":false}")
     if [[ $? -ne 0 ]]; then
-        echo "Failed to update record ${record_id} (${record_type}) for ${fqdn} on Cloudflare"
+        echo "Failed to communicate with Cloudflare API"
         return 1
     fi
-    echo "$response"
+    success=$(echo "$response" | grep -o '"success":true')
+    if [[ -z "$success" ]]; then
+        echo "Failed to update ${record_type} record for ${fqdn} via Cloudflare API."
+        return 1
+    else 
+        echo "Updated ${record_type} record for ${fqdn} with IP ${record_value}."
+    fi
+    return 0
 }
 
-create_record() {
+cf_update_dns_record() {
     fqdn=$1
     record_type=$2
     record_value=$3
-    response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records" \
-        -H "Authorization: Bearer ${apiToken}" \
-        -H "Content-Type: application/json" \
-        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":60,\"proxied\":false}")
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to create record (${record_type}) for ${fqdn} on Cloudflare"
-        return 1
-    fi
-    echo "$response"
-}
-
-update_dns_record() {
-    fqdn=$1
-    record_type=$2
-    record_value=$3
-    echo "Updating ${record_type} record for ${fqdn} with value ${record_value}"
-    record_id=$(get_record_id "${fqdn}" "${record_type}")
-    if [[ -z "${record_id}" ]]; then
-        response=$(create_record "${fqdn}" "${record_type}" "${record_value}")
-        echo "Created ${record_type} record for ${fqdn}: $response"
+    record_id=$(cf_get_record_id "${fqdn}" "${record_type}")
+    if [[ -z "$record_id" ]]; then
+        echo "Creating new ${record_type} record for ${fqdn} with IP ${record_value}."
+        cf_create_record "${fqdn}" "${record_type}" "${record_value}"
     else
-        response=$(update_record "${record_id}" "${fqdn}" "${record_type}" "${record_value}")
-        echo "Updated ${record_type} record for ${fqdn}: $response"
+        echo "Updating ${record_type} record for ${fqdn} with IP ${record_value} (CF-ID: ${record_id})."
+        cf_update_record "${fqdn}" "${record_type}" "${record_value}" "${record_id}"
     fi
 }
 
 parse_records() {
-    echo "$records" | while IFS= read -r line; do
+    echo "$customRecords" | while IFS= read -r line; do
         record_fqdn=$(echo "$line" | cut -d',' -f1)
         record_type=$(echo "$line" | cut -d',' -f2)
         suffix=$(echo "$line" | cut -d',' -f3)
-
         if [[ "${record_type}" == "AAAA" ]]; then
             if [[ -n "${suffix}" ]]; then
                 record_value="${prefix}${suffix}"
@@ -98,29 +115,27 @@ parse_records() {
         else
             record_value="${v4}"
         fi
-
-        update_dns_record "${record_fqdn}" "${record_type}" "${record_value}"
+        cf_update_dns_record "${record_fqdn}" "${record_type}" "${record_value}"
     done
 }
 
 while true; do
     bashio::cache.flush_all
-
     for getv6 in $(bashio::network.ipv6_address); do
-        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* ]]; then
+        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacy}" != true ]]; then
             v6new="${getv6:0:38}"
+            prefix="${v6new:0:${prefixCount}}"
             break
         fi
     done
-    if [[ "${getv6}" != "null" && "${getv6}" != "" && "${getv6}" != "Unavailable" && "${legacy}" != true ]]; then
-        prefix="${v6new:0:${prefixCount}}"
-    else
+    if [[ -z "$v6new" ]]; then
         v6new="Unavailable"
         prefix="Unavailable"
     fi
 
+
     getv4=$(curl -s -4 ifconfig.co)
-    if [[ "${getv4}" == *.*.*.* && "${v4en}" == true ]]; then
+    if [[ "${getv4}" == *.*.*.* && "${v4Enabled}" == true ]]; then
         v4new="${getv4}"
     else
         v4new="Unavailable"
@@ -131,22 +146,24 @@ while true; do
         v4="${v4new}"
         echo "Your new public IP config: Prefix: ${prefix} IPv6: ${v6} IPv4: ${v4}"
 
-        if [[ -n "${hafqdn}" ]]; then
-            if [[ "${legacy}" == false ]]; then
-                update_dns_record "${hafqdn}" "AAAA" "${v6}"
+        if [[ -n "${hostfqdn}" ]]; then
+            if [[ "${legacyMode}" == false ]]; then
+                cf_update_dns_record "${hostfqdn}" "AAAA" "${v6}"
             fi
 
-            if [[ ${v4en} == true ]]; then
-                update_dns_record "${hafqdn}" "A" "${v4}"
+            if [[ ${v4Enabled} == true ]]; then
+                cf_update_dns_record "${hostfqdn}" "A" "${v4}"
             fi
         fi
 
-        if [[ ${customen} = true ]]; then
+        if [[ ${customEnabled} = true ]]; then
             parse_records
         fi
     else
         echo "IPs haven't changed since the last update"
     fi
 
+    echo "Waiting $((refresh / 60)) minutes until the next update"
     sleep "${refresh}"
 done
+# (C) GitHub\TKtheDEV

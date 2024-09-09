@@ -8,11 +8,11 @@ configuration:
     name: API Token
     description: >-
       A Token with "DNS ZONE EDIT" permissions for the domain its' records you want to update
-  fqdn:
+  hostfqdn:
     name: FQDN
     description: >-
       The fully qualified domain name of your Homeassistant (eg. home.yourdomain.com)
-  v4En:
+  v4Enabled:
     name: Generate A record
     description: >-
       If youre behint CG-NAT or DS-Lite you cannot be reached via IPv4.
@@ -25,17 +25,17 @@ configuration:
     name: Refresh
     description: >-
       Time in seconds to check if your Prefix and IP Addresses have changed
-  legacy:
+  legacyMode:
     name: Legacy Mode
     description: >-
       NOT RECOMMENDED!
       Only enable if "Generate A record" is enabled in case your provider has IPv6 Issues!
-  customEn:
+  customEnabled:
     name: Enable custom records list
     description: >-
       Update records for hosts other than your Homeassistant too (available through edit config as YAML)
       You have to specify subnet+interface ID. For example: 32:1034:56ff:fe78:9abc for /56
-  records:
+  customRecords:
     name: Custom Records
     description: >-
       test123
