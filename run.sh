@@ -122,7 +122,7 @@ parse_records() {
 while true; do
     bashio::cache.flush_all
     for getv6 in $(bashio::network.ipv6_address); do
-        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacy}" != true ]]; then
+        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
             v6new="${getv6:0:38}"
             prefix="${v6new:0:${prefixCount}}"
             break
