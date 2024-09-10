@@ -119,21 +119,7 @@ parse_records() {
     done
 }
 
-#while true; do
-#    bashio::cache.flush_all
-#    for getv6 in $(bashio::network.ipv6_address); do
-#        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
-#            v6new="${getv6:0:38}"
-#            prefix="${v6new:0:${prefixCount}}"
-#            break
-#        fi
-#    done
-#    if [[ -z "$v6new" ]]; then
-#        v6new="Unavailable"
-#        prefix="Unavailable"
-#    fi
-
-##Hotfix 1.3.1
+##Hotfix 1.3
 while true; do
     # Get the current IPv6 address
     getv6=$(curl -s -6 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
@@ -144,8 +130,6 @@ while true; do
         v6new="Unavailable"
         prefix="Unavailable"
     fi
-    
-    echo "getv6 complete"
 
     getv4=$(curl -s -4 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
     if [[ "${getv4}" == *.*.*.* && "${v4Enabled}" == true ]]; then
