@@ -1,5 +1,5 @@
 ---
-version: 0.6.6
+version: 0.9.0
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -24,7 +24,7 @@ options:
   legacyMode: false
   customEnabled: false
   customRecords: >-
-    ""
+
 schema:
   zoneId: str?
   apiToken: password
