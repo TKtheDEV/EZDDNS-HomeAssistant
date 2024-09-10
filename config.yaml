@@ -1,5 +1,5 @@
 ---
-version: 0.9.4
+version: 1.0
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -24,6 +24,9 @@ options:
   legacyMode: false
   customEnabled: false
   customRecords:
+#   - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
+#   - AAAA.example.com,AAAA
+#   - A.example.com,A
 
 schema:
   zoneId: str?
