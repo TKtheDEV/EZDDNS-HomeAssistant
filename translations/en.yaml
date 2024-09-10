@@ -30,6 +30,10 @@ configuration:
     description: >-
       The records' Time-To-Live in seconds. 1 means auto. Between 60 and 86400. 
       Too low of a value results in increased DNS lookup frequency on your devices and therefore slightly longer loading times.
+  proxied:
+    name: Cloudflare-proxied
+    description: >-
+      Enable or disable the Cloudflare proxy for the records as you would do manually in the CF-dashboard
   legacyMode:
     name: Legacy Mode
     description: >-

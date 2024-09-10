@@ -1,4 +1,7 @@
 # Changelog
+## 1.7.2
+ - restructured Options
+
 ## 1.7.1
  - added DNS TTL
 

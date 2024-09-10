@@ -1,5 +1,5 @@
 ---
-version: 1.7.1
+version: 1.7.2
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -20,15 +20,7 @@ options:
   hostfqdn: null
   v4Enabled: false
   prefixLength: 56
-  dnsttl: 1
-  proxied: false
   refresh: 300
-  legacyMode: false
-  customEnabled: false
-  customRecords:
-#   - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
-#   - AAAA.example.com,AAAA
-#   - A.example.com,A
 
 schema:
   zoneId: str?
@@ -36,10 +28,13 @@ schema:
   hostfqdn: str?
   v4Enabled: bool
   prefixLength: list(48|52|56|60|64)
+  refresh: "int(60,)"
   dnsttl: "int(1,86400)"
   proxied: bool
-  refresh: "int(60,)"
   legacyMode: bool
   customEnabled: bool
   customRecords:
     - str?
+#   - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
+#   - AAAA.example.com,AAAA
+#   - A.example.com,A
