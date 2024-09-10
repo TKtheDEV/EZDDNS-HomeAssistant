@@ -1,5 +1,6 @@
 ## EZDDNS for Home Assistant
 ### Simple yet versatile IPv6 and IPv4 Cloudflare Dynamic DNS updater for Home Assistant
+Based on https://github.com/TKtheDEV/EZDDNS
 
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/TKtheDEV/EZDDNS-HomeAssistant)
 
