@@ -117,6 +117,7 @@ parse_records() {
 
 while true; do
     bashio::cache.flush_all
+    echo "${ttl}"
     for getv6 in $(bashio::network.ipv6_address); do
         if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
             v6new="${getv6%%/*}"
