@@ -1,7 +1,9 @@
 # Changelog
+## 1.4
+ - changed ipv6 retrieval method to fix issues with shortened addresses
 
 ## 1.3.3
-Hotfix
+ - Hotfix
 
 ## 1.3
  - added buttons for fast integration with Home Assistant and reorganised the repo

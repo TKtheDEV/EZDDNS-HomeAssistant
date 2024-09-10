@@ -22,6 +22,18 @@ else
     prefixCount=$(( (prefixLength / 4) + 2 ))
 fi
 
+expand_ipv6() {
+    local raw_v6=$1
+    local raw_pre="${addr%%::*}"
+    local raw_suf="${addr##*::}"
+    local pre_blocks=$(grep -o ":" <<< "$pre" | wc -l)
+    local suf_blocks=$(grep -o ":" <<< "$suf" | wc -l)
+    local fill_blocks=$((8 - pre_blocks - suf_blocks - 1))
+
+    proc_addr="${pre}$(for ((i=0; i<$fill_blocks; i++)); do echo -n ":0000"; done):${raw_suf}"
+    echo $proc_addr | awk -F: '{ for (i=1; i<=NF; i++) printf("%s%s", sprintf("%04x", "0x"$i), (i<NF)?":":""); }'
+}
+
 cf_get_record_id() {
     fqdn=$1
     record_type=$2
@@ -119,14 +131,17 @@ parse_records() {
     done
 }
 
-##Hotfix 1.3
 while true; do
-    # Get the current IPv6 address
-    getv6=$(curl -s -6 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
-    if [[ "${getv6}" == *:*:*:*:*:*:*:* && "${legacyMode}" != true ]]; then
-        v6new="${getv6:0:38}"
-        prefix="${v6new:0:${prefixCount}}"  # Extract the prefix from the IPv6 address
-    else
+    bashio::cache.flush_all
+    for getv6 in $(bashio::network.ipv6_address); do
+        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
+            v6ext=$(expand_ipv6 "$get_v6")
+            v6new="${v6ext:0:38}"
+            prefix="${v6new:0:${prefixCount}}"
+            break
+        fi
+    done
+    if [[ -z "$v6new" ]]; then
         v6new="Unavailable"
         prefix="Unavailable"
     fi
