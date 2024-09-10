@@ -15,7 +15,7 @@ v4new=""
 v6=""
 v6new=""
 prefix=""
-hextets="$((prefixLength / 16))"
+hextets=$((prefixLength / 16))
 
 cf_get_record_id() {
     fqdn=$1
@@ -121,7 +121,10 @@ while true; do
             v6new="${getv6%%/*}"
             prefixTmp=$(echo "$v6" | cut -d':' -f1-$hextets)
             nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))
-            paddedNextHextet=$(printf "%04x" "$((0x$nextHextet))")
+
+            # Pad the hextet with leading zeros if necessary
+            paddedNextHextet=$(printf "%04s" "$nextHextet")
+
             remainder=$((prefixLength % 16))
             if [ "$remainder" -ne 0 ]; then
                 preSuf=$(echo "$paddedNextHextet" | cut -c1-$((remainder / 4)))
