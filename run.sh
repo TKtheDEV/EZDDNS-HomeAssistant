@@ -119,8 +119,6 @@ while true; do
     for getv6 in $(bashio::network.ipv6_address); do
         if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
             v6new="${getv6%%/*}"
-
-            # Extract the prefix based on the prefix length
             prefixTmp=$(echo "$v6new" | cut -d':' -f1-$hextets)
             nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))
             paddedNextHextet=$(printf "%04s" "$nextHextet")
