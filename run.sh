@@ -5,7 +5,6 @@ apiToken=$(bashio::config "apiToken")
 hostfqdn=$(bashio::config "hostfqdn")
 v4Enabled=$(bashio::config "v4Enabled")
 prefixLength=$(bashio::config "prefixLength")
-ttl=$(bashio::config "ttl")
 refresh=$(bashio::config "refresh")
 legacyMode=$(bashio::config "legacyMode")
 customEnabled=$(bashio::config "customEnabled")
@@ -45,7 +44,7 @@ cf_create_record() {
     api_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":\"${ttl}\",\"proxied\":false}")
+        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":60,\"proxied\":false}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
         return 1
@@ -68,7 +67,7 @@ cf_update_record() {
     response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record_id}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":\"${ttl}\",\"proxied\":false}")
+        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":60,\"proxied\":false}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
         return 1
@@ -117,7 +116,6 @@ parse_records() {
 
 while true; do
     bashio::cache.flush_all
-    echo "${ttl}"
     for getv6 in $(bashio::network.ipv6_address); do
         if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
             v6new="${getv6%%/*}"
