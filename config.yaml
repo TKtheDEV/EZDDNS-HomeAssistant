@@ -1,5 +1,5 @@
 ---
-version: 1.7.2
+version: 1.7.3
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -21,6 +21,14 @@ options:
   v4Enabled: false
   prefixLength: 56
   refresh: 300
+  dnsttl: 1
+  proxied: false
+  legacyMode: false
+  customEnabled: false
+  customRecords:
+#   - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
+#   - AAAA.example.com,AAAA
+#   - A.example.com,A
 
 schema:
   zoneId: str?
@@ -35,6 +43,3 @@ schema:
   customEnabled: bool
   customRecords:
     - str?
-#   - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
-#   - AAAA.example.com,AAAA
-#   - A.example.com,A
