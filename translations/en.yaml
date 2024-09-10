@@ -25,6 +25,11 @@ configuration:
     name: Refresh
     description: >-
       Time in seconds to check if your Prefix and IP Addresses have changed
+  dnsttl:
+    name: DNS-TTL
+    description: >-
+      The records' Time-To-Live in seconds. 1 means auto. Between 60 and 86400. 
+      Too low of a value results in increased DNS lookup frequency on your devices and therefore slightly longer loading times.
   legacyMode:
     name: Legacy Mode
     description: >-

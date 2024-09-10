@@ -1,4 +1,6 @@
 # Changelog
+## 1.7.1
+ - added DNS TTL
 
 ## 1.5.1
  - cleaned up ipv6 backend
