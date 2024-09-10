@@ -38,4 +38,8 @@ configuration:
   customRecords:
     name: Custom Records
     description: >-
-      test123
+      Enter your custom records with the following schema:
+      fqdn,A (for A record with HomeAssistants' public v4 address)
+      fqdn,AAAA (for AAAA record with HAs public v6 address)
+      fqdn,AAAA,suffix (for AAAA records with HAs prefix and custom subnet and if-id)
+      custom.example.com,AAAA,2:6034:45ff:fe23:653b (Example for /60 prefix)

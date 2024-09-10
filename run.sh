@@ -156,8 +156,6 @@ while true; do
             fi
         fi
 
-        echo ${customRecords}
-
         if [[ ${customEnabled} = true ]]; then
             parse_records
         fi
