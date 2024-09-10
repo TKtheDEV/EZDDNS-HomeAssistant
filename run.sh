@@ -134,7 +134,7 @@ while true; do
     fi
 
 
-    getv4=$(curl -s -4 ifconfig.co)
+    getv4=$(curl -s -4 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
     if [[ "${getv4}" == *.*.*.* && "${v4Enabled}" == true ]]; then
         v4new="${getv4}"
     else
