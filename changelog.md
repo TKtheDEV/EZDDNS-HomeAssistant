@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2
+- bugfixes
+
 ## 1.1
 - added changelog
 
