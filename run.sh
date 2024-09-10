@@ -124,9 +124,9 @@ while true; do
             paddedNextHextet=$(printf "%04x" "$((0x$nextHextet))")
             remainder=$((prefixLength % 16))
             if [ "$remainder" -ne 0 ]; then
-                suffix=$(echo "$paddedNextHextet" | cut -c1-$((remainder / 4)))
-                suffix=$(printf "%-4s" "$suffix" | tr ' ' '0')
-                prefix="${prefixTmp}:${suffix}"
+                preSuf=$(echo "$paddedNextHextet" | cut -c1-$((remainder / 4)))
+                preSuf=$(printf "%-4s" "$preSuf" | tr ' ' '0')
+                prefix="${prefixTmp}:${preSuf}"
             else
                 prefix="${prefixTmp}:"
             fi
