@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2
+## 1.2.1
 - bugfixes
 
 ## 1.1
