@@ -1,4 +1,7 @@
 # Changelog
+## 1.4.1
+ - Stable
+
 ## 1.4
  - changed ipv6 retrieval method to fix issues with shortened addresses
 

@@ -135,7 +135,7 @@ while true; do
     bashio::cache.flush_all
     for getv6 in $(bashio::network.ipv6_address); do
         if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
-            v6ext=$(expand_ipv6 "$get_v6")
+            v6ext=$(expand_ipv6 "$getv6")
             v6new="${v6ext:0:38}"
             prefix="${v6new:0:${prefixCount}}"
             break
