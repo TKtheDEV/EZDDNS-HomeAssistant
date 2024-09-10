@@ -1,5 +1,5 @@
 ---
-version: 0.9.1
+version: 0.9.2
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -23,7 +23,7 @@ options:
   refresh: 300
   legacyMode: false
   customEnabled: false
-  customRecords: >-
+  customRecords:
     - AAAA.example.com,AAA
     - AAAAcustom.example.com,AAAA,56:0123:45ff:fe67:89ab
     - Arecord.example.com,A
