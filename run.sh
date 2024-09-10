@@ -30,7 +30,7 @@ expand_ipv6() {
     local suf_blocks=$(grep -o ":" <<< "$raw_suf" | wc -l)
     local fill_blocks=$((8 - pre_blocks - suf_blocks - 1))
 
-    proc_addr="${pre}$(for ((i=0; i<$fill_blocks; i++)); do echo -n ":0000"; done):${raw_suf}"
+    proc_addr="${raw_pre}$(for ((i=0; i<$fill_blocks; i++)); do echo -n ":0000"; done):${raw_suf}"
     echo $proc_addr | awk -F: '{ for (i=1; i<=NF; i++) printf("%s%s", sprintf("%04x", "0x"$i), (i<NF)?":":""); }'
 }
 
