@@ -21,6 +21,10 @@ configuration:
     name: Prefix Length
     description: >-
       The length of your IPv6 prefix, usually /56, /48 or /60
+  ttl:
+    name: DNS-TTL
+    description: >-
+      The records' time-to-live in seconds between 60 and 86400, 1 means automatic
   refresh:
     name: Refresh
     description: >-
