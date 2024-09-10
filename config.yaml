@@ -1,5 +1,5 @@
 ---
-version: 1.6.4
+version: 1.6.5
 slug: ezddns
 name: EZ DDNS
 description: >
@@ -20,7 +20,6 @@ options:
   hostfqdn: null
   v4Enabled: false
   prefixLength: 56
-  #ttl: 600
   refresh: 300
   legacyMode: false
   customEnabled: false
@@ -35,7 +34,6 @@ schema:
   hostfqdn: str?
   v4Enabled: bool
   prefixLength: list(48|52|56|60|64)
-  #ttl: "int(1,86400)"
   refresh: "int(60,)"
   legacyMode: bool
   customEnabled: bool

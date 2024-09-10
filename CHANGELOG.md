@@ -1,8 +1,6 @@
 # Changelog
-## 1.6.3
- - adding TTL soon
 
-## 1.5.1
+## 1.5.0
  - cleaned up ipv6 backend
 
 ## 1.4.3
