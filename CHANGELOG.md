@@ -1,4 +1,8 @@
 # Changelog
+
+## 1.5.0
+ - cleaned up ipv6 backend
+
 ## 1.4.3
  - Stable
 

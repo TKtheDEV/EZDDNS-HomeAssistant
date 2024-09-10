@@ -15,24 +15,7 @@ v4new=""
 v6=""
 v6new=""
 prefix=""
-
-if [[ ${prefixLength} == 64 ]]; then
-    prefixCount=$(( (prefixLength / 4) + 3 ))
-else
-    prefixCount=$(( (prefixLength / 4) + 2 ))
-fi
-
-expand_ipv6() {
-    local raw_v6=$1
-    local raw_pre="${raw_v6%%::*}"
-    local raw_suf="${raw_v6##*::}"
-    local pre_blocks=$(grep -o ":" <<< "$raw_pre" | wc -l)
-    local suf_blocks=$(grep -o ":" <<< "$raw_suf" | wc -l)
-    local fill_blocks=$((8 - pre_blocks - suf_blocks - 1))
-
-    proc_addr="${raw_pre}$(for ((i=0; i<$fill_blocks; i++)); do echo -n ":0000"; done):${raw_suf}"
-    echo $proc_addr | awk -F: '{ for (i=1; i<=NF; i++) printf("%s%s", sprintf("%04x", "0x"$i), (i<NF)?":":""); }'
-}
+hextets="$((prefixLength / 16))"
 
 cf_get_record_id() {
     fqdn=$1
@@ -135,12 +118,22 @@ while true; do
     bashio::cache.flush_all
     for getv6 in $(bashio::network.ipv6_address); do
         if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
-            v6ext=$(expand_ipv6 "$getv6")
-            v6new="${v6ext:0:38}"
-            prefix="${v6new:0:${prefixCount}}"
+            v6new="${getv6%%/*}"
+            prefixTmp=$(echo "$v6" | cut -d':' -f1-$hextets)
+            nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))
+            paddedNextHextet=$(printf "%04x" "$((0x$nextHextet))")
+            remainder=$((prefixLength % 16))
+            if [ "$remainder" -ne 0 ]; then
+                suffix=$(echo "$paddedNextHextet" | cut -c1-$((remainder / 4)))
+                suffix=$(printf "%-4s" "$suffix" | tr ' ' '0')
+                prefix="${prefixTmp}:${suffix}"
+            else
+                prefix="${prefixTmp}:"
+            fi
             break
         fi
     done
+
     if [[ -z "$v6new" ]]; then
         v6new="Unavailable"
         prefix="Unavailable"
