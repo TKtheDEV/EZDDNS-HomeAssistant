@@ -45,7 +45,7 @@ cf_create_record() {
     api_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${ttl},\"proxied\":false}")
+        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":\"${ttl}\",\"proxied\":false}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
         return 1
@@ -68,7 +68,7 @@ cf_update_record() {
     response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${record_id}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${ttl},\"proxied\":false}")
+        --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":\"${ttl}\",\"proxied\":false}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
         return 1
