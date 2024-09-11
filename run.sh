@@ -27,12 +27,12 @@ cf_get_record_id() {
         -H "Content-Type: application/json")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
-        return 1
+        return 0
     fi
     success=$(echo "$api_response" | grep -o '"success":true')
     if [[ -z "$success" ]]; then
         echo "Failed to fetch record ID for ${fqdn} (${record_type}) from Cloudflare API"
-        return 1
+        return 0
     fi
     record_id=$(echo "$api_response" | grep -oE '"id":"[^"]+"' | head -n 1 | cut -d':' -f2 | tr -d '"')
     echo "$record_id"
@@ -49,12 +49,12 @@ cf_create_record() {
         --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
-        return 1
+        return 0
     fi
     success=$(echo "$api_response" | grep -o '"success":true')
     if [[ -z "$success" ]]; then
         echo "Failed to create ${record_type} record for ${fqdn} via Cloudflare API."
-        return 1
+        return 0
     else 
         echo "Created ${record_type} record for ${fqdn} with IP ${record_value}."
     fi
@@ -72,12 +72,12 @@ cf_update_record() {
         --data "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}")
     if [[ $? -ne 0 ]]; then
         echo "Failed to communicate with Cloudflare API"
-        return 1
+        return 0
     fi
     success=$(echo "$response" | grep -o '"success":true')
     if [[ -z "$success" ]]; then
         echo "Failed to update ${record_type} record for ${fqdn} via Cloudflare API."
-        return 1
+        return 0
     else 
         echo "Updated ${record_type} record for ${fqdn} with IP ${record_value}."
     fi
