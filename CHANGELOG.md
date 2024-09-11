@@ -1,4 +1,7 @@
 # Changelog
+## 1.7.4
+ - debugging error handling
+
 ## 1.7.2
  - restructured Options
 
