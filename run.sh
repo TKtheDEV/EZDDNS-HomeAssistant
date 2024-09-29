@@ -67,7 +67,6 @@ parse_records() {
 
 # Main loop to periodically check and update DNS records
 while true; do
-    # Flush cached network data
     bashio::cache.flush_all
 
     # IPv6 handling: Loop through all IPv6 addresses and process the valid one
@@ -89,6 +88,8 @@ while true; do
             break  # Stop after the first valid address
         fi
     done
+
+    echo "IPs"
 
     # If no valid IPv6 address is found, set to "Unavailable"
     if [[ -z "$v6new" ]]; then
@@ -113,6 +114,8 @@ while true; do
         # Reset failure count and increment success count
         failCount=0
         ((successCount++))
+
+        echo "uPDATING..."
 
         # If IP addresses have changed, update the DNS records
         if [[ "${v6new}" != "${v6}" || "${v4new}" != "${v4}" ]]; then
