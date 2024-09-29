@@ -25,8 +25,8 @@ v4=
 cf_api() {
     method=$1  # HTTP method (GET, POST, PUT)
     endpoint=$2  # API endpoint
-    data=$3  # Data payload for POST/PUT requests (optional)
-    
+    data=${3:-}  # Data payload for POST/PUT requests (optional)
+
     # Perform the API call using curl
     curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
