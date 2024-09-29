@@ -1,5 +1,5 @@
 # Changelog
-## 1.8.0
+## 1.8.7
  - Better Error handling: fixed crashes when offline for more than one minute
  - Code performance optimisation, especially for Cloudflare API Access
 ## 1.7.4

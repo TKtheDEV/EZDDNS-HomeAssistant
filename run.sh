@@ -31,7 +31,7 @@ cf_api() {
     curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        ${data:+--data "$data"} > /dev/null
+        ${data:+--data "$data"} 
 }
 
 # Function to manage DNS records (create or update)
@@ -45,11 +45,11 @@ cf_manage_record() {
 
     if [[ -z "$record_id" ]]; then
         # If the record doesn't exist, create it
-        echo "Creating new ${record_type} record for ${fqdn} with IP ${record_value}."
+        echo -e "\nCreating new ${record_type} record for ${fqdn} with IP ${record_value}.\n"
         cf_api POST "dns_records" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     else
         # If the record exists, update it
-        echo "Updating ${record_type} record for ${fqdn} with IP ${record_value} (CF-ID: ${record_id})."
+        echo -e "\nUpdating ${record_type} record for ${fqdn} with IP ${record_value} (CF-ID: ${record_id}).\n"
         cf_api PUT "dns_records/${record_id}" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     fi
 }
@@ -130,7 +130,7 @@ while true; do
             # Update custom DNS records if enabled
             [[ ${customEnabled} == true ]] && parse_records
 
-            echo "Updated records. Waiting ${refreshMin} minutes until the next update"
+            echo -e "\nUpdated records. Waiting ${refreshMin} minutes until the next update"
             successCount=0  # Reset success counter after update
         else
             # IPs haven't changed, just print a message
