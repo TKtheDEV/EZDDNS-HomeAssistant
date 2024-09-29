@@ -28,10 +28,10 @@ cf_api() {
     data=${3:-}  # Data payload for POST/PUT requests (optional)
 
     # Perform the API call using curl and capture response
-    response=$(curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
+    curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        ${data:+--data "$data"})
+        ${data:+--data "$data"} > /dev/null
 }
 
 # Function to manage DNS records (create or update)
