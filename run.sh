@@ -45,11 +45,11 @@ cf_manage_record() {
 
     if [[ -z "$record_id" ]]; then
         # If the record doesn't exist, create it
-        echo -e "\nCreating new ${record_type} record for ${fqdn} with IP ${record_value}.\n"
+        echo -e "\n\nCreating new ${record_type} record for ${fqdn} with IP ${record_value}."
         cf_api POST "dns_records" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     else
         # If the record exists, update it
-        echo -e "\nUpdating ${record_type} record for ${fqdn} with IP ${record_value} (CF-ID: ${record_id}).\n"
+        echo -e "\n\nUpdating ${record_type} record for ${fqdn} with IP ${record_value} (CF-ID: ${record_id})."
         cf_api PUT "dns_records/${record_id}" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     fi
 }
@@ -130,7 +130,7 @@ while true; do
             # Update custom DNS records if enabled
             [[ ${customEnabled} == true ]] && parse_records
 
-            echo -e "\nUpdated records. Waiting ${refreshMin} minutes until the next update"
+            echo -e "\n\nUpdated records. Waiting ${refreshMin} minutes until the next update"
             successCount=0  # Reset success counter after update
         else
             # IPs haven't changed, just print a message
