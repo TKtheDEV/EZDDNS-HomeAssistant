@@ -37,7 +37,6 @@ cf_api() {
     success=$(echo "$response" | grep -o '"success":true')
     if [[ -z "$success" ]]; then
         echo "Failed to communicate with the Cloudflare API. Probably due to a malformed entry or wrong credentials."
-        return 1
     fi
 }
 
