@@ -89,8 +89,6 @@ while true; do
         fi
     done
 
-    echo "IPs"
-
     # If no valid IPv6 address is found, set to "Unavailable"
     if [[ -z "$v6new" ]]; then
         v6new="Unavailable"
@@ -105,12 +103,16 @@ while true; do
         v4new="Unavailable"  # Set IPv4 to "Unavailable" if not found or disabled
     fi
 
+    echo "IPs2"
+
     # If both IPv6 and IPv4 are unavailable, count as failure
     if [[ "${v6new}" == "Unavailable" && "${v4new}" == "Unavailable" ]]; then
         successCount=0
         ((failCount++))  # Increment failure count
         echo "No Internet Connection detected for $((refreshMin * failCount)) minutes. Trying again in ${refreshMin} minutes!"
+        echo "IPs22"
     else
+        echo "IPs3"
         # Reset failure count and increment success count
         failCount=0
         ((successCount++))
