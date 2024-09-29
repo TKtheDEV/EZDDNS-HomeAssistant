@@ -106,16 +106,12 @@ while true; do
     # If both IPv6 and IPv4 are unavailable, count as failure
     if [[ "${v6new}" == "Unavailable" && "${v4new}" == "Unavailable" ]]; then
         successCount=0
-        ((failCount++))  # Increment failure count
+        ((failCount+= 1))  # Increment failure count
         echo "No Internet Connection detected for $((refreshMin * failCount)) minutes. Trying again in ${refreshMin} minutes!"
     else
-        echo "IPs3"
         # Reset failure count and increment success count
         failCount=0
-        echo "IPs4"
-        ((successCount++))
-
-        echo "uPDATING..."
+        ((successCount += 1))
 
         # If IP addresses have changed, update the DNS records
         if [[ "${v6new}" != "${v6}" || "${v4new}" != "${v4}" ]]; then
