@@ -18,6 +18,8 @@ refreshMin=$((refresh / 60))
 failCount=0  # Counter for failed attempts
 successCount=0  # Counter for successful attempts
 hextets=$((prefixLength / 16))  # Number of IPv6 hextets based on prefix length
+v6=
+v4=
 
 # Function to make Cloudflare API requests (GET, POST, PUT)
 cf_api() {
