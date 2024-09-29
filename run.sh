@@ -134,7 +134,7 @@ while true; do
             successCount=0  # Reset success counter after update
         else
             # IPs haven't changed, just print a message
-            echo "IPs haven't changed since $((refreshMin * successCount)) minutes. Waiting ${refreshMin} minutes until the next update"
+            echo -e "\nIPs haven't changed since $((refreshMin * successCount)) minutes. Waiting ${refreshMin} minutes until the next update"
             echo "Your public IP config: Prefix: ${prefix} IPv6: ${v6} IPv4: ${v4}"
         fi
     fi
