@@ -18,6 +18,7 @@ refreshMin=$((refresh / 60))
 failCount=0  # Counter for failed attempts
 successCount=0  # Counter for successful attempts
 hextets=$((prefixLength / 16))  # Number of IPv6 hextets based on prefix length
+prefix=
 v6=
 v4=
 
@@ -28,10 +29,16 @@ cf_api() {
     data=${3:-}  # Data payload for POST/PUT requests (optional)
 
     # Perform the API call using curl
-    curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
+    response=$(curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        ${data:+--data "$data"}
+        ${data:+--data "$data"})
+
+    success=$(echo "$response" | grep -o '"success":true')
+    if [[ -z "$success" ]]; then
+        echo "Failed to communicate with the Cloudflare API. Probably due to a malformed entry or wrong credentials."
+        return 1
+    fi
 }
 
 # Function to manage DNS records (create or update)
