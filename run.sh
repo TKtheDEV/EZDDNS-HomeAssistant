@@ -24,9 +24,9 @@ v4=
 
 # Function to make Cloudflare API requests (GET, POST, PUT)
 cf_api() {
-    method=$1  # HTTP method (GET, POST, PUT)
-    endpoint=$2  # API endpoint
-    data=${3:-}  # Data payload for POST/PUT requests (optional)
+    method=$1
+    endpoint=$2
+    data=${3:-}
 
     # Perform the API call using curl
     response=$(curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
@@ -34,9 +34,15 @@ cf_api() {
         -H "Content-Type: application/json" \
         ${data:+--data "$data"})
 
+    if [[ $? -ne 0 ]]; then
+        echo "Error: API request failed for endpoint: ${endpoint}"
+        return 1
+    fi
+
     success=$(echo "$response" | grep -o '"success":true')
     if [[ -z "$success" ]]; then
-        echo "Failed to communicate with the Cloudflare API. Probably due to a malformed entry or wrong credentials."
+        echo "Error: Failed to communicate with the Cloudflare API. Response: $response"
+        return 1
     fi
 }
 
