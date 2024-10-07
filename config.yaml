@@ -1,9 +1,9 @@
 ---
-version: 1.9
+version: 1.9.1
 slug: ezddns
 name: EZ DDNS
 description: >
-  Easy Cloudflare DDNS updates for IPv6 and IPv4
+  IPv6 and IPv4 Cloudflare Dynamic DNS updater by TKtheDev
 url: https://github.com/TKtheDEV/EZDDNS-HomeAssistant
 arch:
   - aarch64

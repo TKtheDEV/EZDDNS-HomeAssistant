@@ -18,6 +18,8 @@ refreshMin=$((refresh / 60))
 failCount=0  # Counter for failed attempts
 successCount=0  # Counter for successful attempts
 hextets=$((prefixLength / 16))  # Number of IPv6 hextets based on prefix length
+v6new=
+v4new=
 v6=
 v4=
 

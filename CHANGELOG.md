@@ -1,7 +1,11 @@
 # Changelog
+## 1.9.1
+ - Hotfix for "Unbound Variable" error occuring in some cases when restarting the addon
+
 ## 1.8.7
  - Better Error handling: fixed crashes when offline for more than one minute
  - Code performance optimisation, especially for Cloudflare API Access
+
 ## 1.7.4
  - debugging error handling
 
