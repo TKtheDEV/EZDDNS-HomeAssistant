@@ -129,12 +129,10 @@ parse_records() {
 
 # Main loop to periodically check and update DNS records
 while true; do
-    bashio::cache.flush_all
-
-    # IPv6 handling: Loop through all IPv6 addresses and process the valid one
-    for getv6 in $(bashio::network.ipv6_address); do
-        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
-            v6new="${getv6%%/*}"  # Remove the prefix length from the IPv6 address
+    # Get the current IPv6 address and extract the prefix from it
+    getv6=$(curl -s -6 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
+    if [[ "${getv6}" == *:*:*:*:*:*:*:* && "${legacyMode}" != true ]]; then
+        v6new="${getv6%%/*}"  # Remove the prefix length from the IPv6 address
             prefixTmp=$(echo "$v6new" | cut -d':' -f1-$hextets)  # Extract the prefix portion of the address
             nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))  # Get the next hextet after the prefix
             paddedNextHextet=$(printf "%04s" "$nextHextet")  # Pad the hextet with leading zeros if necessary
