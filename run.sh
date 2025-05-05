@@ -131,6 +131,7 @@ parse_records() {
 while true; do
     # Get the current IPv6 address and extract the prefix from it
     getv6=$(curl -s -6 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
+    echo ${getv6}
     if [[ "${getv6}" == *:*:*:*:*:*:*:* && "${legacyMode}" != true ]]; then
         v6new="${getv6%%/*}"  # Remove the prefix length from the IPv6 address
             prefixTmp=$(echo "$v6new" | cut -d':' -f1-$hextets)  # Extract the prefix portion of the address
