@@ -145,7 +145,8 @@ parse_records() {
 while true; do
     # Get the current IPv6 address and extract the prefix from it
     getv6=$(get_ipv6_from_supervisor)
-
+    echo ${getv6}
+    
     # If no valid IPv6 address is found, set to "Unavailable"
     if [[ -z "$v6new" ]]; then
         v6new="Unavailable"
