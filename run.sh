@@ -1,6 +1,7 @@
 #!/usr/bin/with-contenv bashio
 
 # Load configuration variables from Home Assistant's add-on options
+supervisorToken=$(bashio::config "supervisorToken")
 zoneId=$(bashio::config "zoneId")
 apiToken=$(bashio::config "apiToken")
 hostfqdn=$(bashio::config "hostfqdn")
@@ -22,6 +23,19 @@ v6new=
 v4new=
 v6=
 v4=
+
+get_ipv6_from_supervisor() {
+    local api_response
+    api_response=$(curl -sSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info)
+    echo "$api_response" | grep -oE '"address":\[[^]]+\]' \
+        | grep -oE '("[^"]+")' \
+        | sed 's/"//g' \
+        | grep ':' \
+        | grep '/' \
+        | grep -v '^fd' \
+        | cut -d'/' -f1 \
+        | head -n1
+}
 
 # Function to make Cloudflare API requests (GET, POST, PUT)
 cf_api() {
@@ -130,25 +144,7 @@ parse_records() {
 # Main loop to periodically check and update DNS records
 while true; do
     # Get the current IPv6 address and extract the prefix from it
-    getv6=$(curl -s -6 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
-    echo ${getv6}
-    if [[ "${getv6}" == *:*:*:*:*:*:*:* && "${legacyMode}" != true ]]; then
-        v6new="${getv6%%/*}"  # Remove the prefix length from the IPv6 address
-            prefixTmp=$(echo "$v6new" | cut -d':' -f1-$hextets)  # Extract the prefix portion of the address
-            nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))  # Get the next hextet after the prefix
-            paddedNextHextet=$(printf "%04s" "$nextHextet")  # Pad the hextet with leading zeros if necessary
-            remainder=$((prefixLength % 16))  # Calculate the remainder for the prefix
-
-            # Adjust the prefix based on the remainder (partial hextet handling)
-            if [ "$remainder" -ne 0 ]; then
-                cut_length=$((remainder / 4))
-                prefix="${prefixTmp}:$(echo "$paddedNextHextet" | cut -c1-$cut_length)"
-            else
-                prefix="${prefixTmp}:"
-            fi
-            break  # Stop after the first valid address
-        fi
-    done
+    getv6=$(get_ipv6_from_supervisor)
 
     # If no valid IPv6 address is found, set to "Unavailable"
     if [[ -z "$v6new" ]]; then
