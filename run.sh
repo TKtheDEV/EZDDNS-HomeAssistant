@@ -25,16 +25,24 @@ v6=
 v4=
 
 get_ipv6_from_supervisor() {
-    local api_response
+    local api_response ipv6_entry ipv6
+
     api_response=$(curl -sSL -H "Authorization: Bearer ${supervisorToken}" http://supervisor/network/info)
-    echo "$api_response" | grep -oE '"address":\[[^]]+\]' \
-        | grep -oE '("[^"]+")' \
-        | sed 's/"//g' \
-        | grep ':' \
-        | grep '/' \
-        | grep -v '^fd' \
-        | cut -d'/' -f1 \
-        | head -n1
+
+    # Extract each block that looks like an address_info entry
+    echo "$api_response" | tr -d '\n' | sed 's/},{/}\n{/g' | while read -r entry; do
+        if echo "$entry" | grep -q '"scope":"global"' &&
+           ! echo "$entry" | grep -q '"deprecated":true' &&
+           echo "$entry" | grep -q '"valid":true'; then
+
+            # Extract the address from the matching block
+            ipv6=$(echo "$entry" | grep -oE '"address":"[^"]+"' | cut -d':' -f2- | tr -d '"' | cut -d'/' -f1)
+            echo "$ipv6"
+            return 0  # Stop after the first match
+        fi
+    done
+
+    echo "Unavailable"
 }
 
 # Function to make Cloudflare API requests (GET, POST, PUT)
@@ -159,8 +167,7 @@ while true; do
             else
                 prefix="${prefixTmp}:"
             fi
-            break  # Stop after the first valid address
-        fi
+            fi
     done
 
     # If no valid IPv6 address is found, set to "Unavailable"
