@@ -159,16 +159,17 @@ while true; do
         sleep "$refresh"
         continue
     fi
-    bashio::log.info "after Unavailable"
 
     ((successCount++))
     failCount=0
 
+    bashio::log.info "before IP changed"
     # IPs changed?
     if [[ "$v6new" != "$v6" || "$v4new" != "$v4" ]]; then
         v6="$v6new"
         v4="$v4new"
 
+        bashio::log.info "before prefix"
         prefix="Unavailable"
         if [[ "$v6" != "Unavailable" && "$legacyMode" != "true" ]]; then
             prefix=$(extract_prefix "$v6")
