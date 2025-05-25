@@ -33,9 +33,12 @@ bashio::log.info "+++ EZDDNS Startup Complete +++"
 # ----------------------------------
 
 get_ipv6_from_supervisor() {
+    bashio::log.info "get_ipv6_from_supervisor"
+
     local ipv6 api_response
 
     api_response=$(curl -sfSL -H "Authorization: Bearer ${supervisorToken}" http://supervisor/network/info)
+    bashio::log.info "after_api_response"
     if [[ -z "$api_response" ]]; then
         bashio::log.warning "Empty or failed response from Supervisor"
         echo "Unavailable"
@@ -148,7 +151,9 @@ parse_records() {
 # ----------------------------------
 
 while true; do
+    bashio::log.info "getting IPv6"
     v6new=$(get_ipv6_from_supervisor)
+    bashio::log.info "getting IPv4"
     v4new=$( [[ "$v4Enabled" == "true" ]] && get_ipv4 || echo "Unavailable" )
 
     if [[ "$v6new" == "Unavailable" && "$v4new" == "Unavailable" ]]; then
