@@ -40,25 +40,30 @@ prefix = None
 
 def get_ipv6_from_supervisor():
     try:
-        resp = requests.get("http://supervisor/network/info", headers={
-            "Authorization": f"Bearer {SUPERVISOR_TOKEN}"
-        }, timeout=5)
+        resp = requests.get(
+            "http://supervisor/network/info",
+            headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
+            timeout=5
+        )
 
-        if not resp.headers.get("Content-Type", "").startswith("application/json"):
-            raise ValueError(f"Unexpected content type: {resp.headers.get('Content-Type')}")
-
-        data = resp.json()
+        try:
+            data = resp.json()
+        except json.JSONDecodeError:
+            logging.error("Supervisor returned non-JSON or invalid response.")
+            return "Unavailable"
 
         for iface in data["data"]["interfaces"]:
-            if iface.get("enabled") and iface.get("ipv6", {}).get("address"):
-                for ip in iface["ipv6"]["address"]:
-                    # Skip ULA (fd..) and link-local (fe80..)
-                    if ip.startswith("fd") or ip.startswith("fe80"):
-                        continue
-                    # Assume it's valid if it starts with 200x and has a prefix
-                    if ip.startswith("200") and "/" in ip:
-                        return ip.split("/")[0]
+            if not iface.get("enabled"):
+                continue
 
+            ipv6_info = iface.get("ipv6", {})
+            for ip in ipv6_info.get("address", []):
+                ip_only = ip.split("/")[0]
+                if ip_only.startswith("200"):
+                    logging.info(f"Selected IPv6: {ip_only}")
+                    return ip_only
+
+        logging.warning("No global IPv6 address found.")
     except Exception as e:
         logging.error(f"IPv6 fetch failed: {e}")
 
