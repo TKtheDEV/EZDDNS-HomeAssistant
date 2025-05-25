@@ -42,7 +42,12 @@ def get_ipv6_from_supervisor():
     try:
         resp = requests.get("http://supervisor/network/info", headers={
             "Authorization": f"Bearer {SUPERVISOR_TOKEN}"
-        })
+        }, timeout=5)
+
+        # Validate JSON response
+        if not resp.headers.get("Content-Type", "").startswith("application/json"):
+            raise ValueError(f"Unexpected content type: {resp.headers.get('Content-Type')}")
+
         data = resp.json()
         for iface in data["data"]["interfaces"]:
             if iface.get("ipv6", {}).get("enabled"):
