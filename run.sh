@@ -22,8 +22,8 @@ hextets=$((prefixLength / 16))
 failCount=0
 successCount=0
 
-v4=""
 v6=""
+v4=""
 prefix=""
 
 bashio::log.info "+++ EZDDNS Startup Complete +++"
@@ -42,16 +42,19 @@ get_ipv6_from_supervisor() {
         return 0
     fi
 
-    # Extract first matching global, valid, non-deprecated address
     ipv6=$(echo "$api_response" | jq -r '
-        .data.interfaces[].ipv6[]
-        | select(.scope == "global" and .valid == true and (.deprecated != true))
-        | .address' | head -n 1)
+        .data.interfaces[]
+        | select(.primary == true and .ipv6.address != null)
+        | .ipv6.address[]
+        | select(startswith("fe80::") | not)
+        | select(startswith("fd") | not)
+        | . ' | head -n 1)
 
     if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
+        bashio::log.warning "No valid global IPv6 address found on primary interface"
         echo "Unavailable"
     else
-        echo "${ipv6%%/*}"  # Strip CIDR
+        echo "${ipv6%%/*}"
     fi
 }
 
