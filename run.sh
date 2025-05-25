@@ -149,37 +149,30 @@ parse_records() {
 
 while true; do
     v6new=$(get_ipv6_from_supervisor)
-    bashio::log.info "getting IPv4"
     v4new=$( [[ "$v4Enabled" == "true" ]] && get_ipv4 || echo "Unavailable" )
-    bashio::log.info "after IPv4"
     if [[ "$v6new" == "Unavailable" && "$v4new" == "Unavailable" ]]; then
-        ((failCount++))
+        failCount=$((failCount + 1))
         successCount=0
-        bashio::log.warning "No valid IPs. Sleeping $refreshMin minutes (failCount=$failCount)..."
+        bashio::log.warning "No connection since $((refreshMin * failCount)) minutes. Checking again in $refreshMin minutes."
         sleep "$refresh"
         continue
     fi
-    
-    bashio::log.info "before counters"
+
     successCount=$((successCount + 1))
     failCount=0
 
-    bashio::log.info "before IP changed"
     # IPs changed?
     if [[ "$v6new" != "$v6" || "$v4new" != "$v4" ]]; then
         v6="$v6new"
         v4="$v4new"
 
-        bashio::log.info "before prefix"
         prefix="Unavailable"
         if [[ "$v6" != "Unavailable" && "$legacyMode" != "true" ]]; then
             prefix=$(extract_prefix "$v6")
         fi
 
         bashio::log.info "IP Change Detected:"
-        bashio::log.info "IPv6: $v6"
-        bashio::log.info "IPv4: $v4"
-        bashio::log.info "Prefix: $prefix"
+        bashio::log.info "IPv6: $v6 Prefix: $prefix IPv4: $v4"
 
         [[ -n "$hostfqdn" && "$legacyMode" != "true" && "$v6" != "Unavailable" ]] && cf_manage_record "$hostfqdn" "AAAA" "$v6"
         [[ -n "$hostfqdn" && "$v4Enabled" == "true" && "$v4" != "Unavailable" ]] && cf_manage_record "$hostfqdn" "A" "$v4"
