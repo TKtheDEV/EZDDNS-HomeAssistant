@@ -68,19 +68,27 @@ cf_api() {
     local method=$1
     local endpoint=$2
     local data=${3:-}
+    local response
 
     bashio::log.info "Calling Cloudflare API: $method $endpoint"
-    if [[ -n "$data" ]]; then
-        bashio::log.info "Payload: $data"
-    fi
+    [[ -n "$data" ]] && bashio::log.info "Payload: $data"
 
-    curl -sf -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
+    response=$(curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        ${data:+--data "$data"} || {
-            bashio::log.error "Cloudflare API call failed: $method $endpoint"
-            return 1
-        }
+        ${data:+--data "$data"})
+
+    if [[ $? -ne 0 || -z "$response" ]]; then
+        bashio::log.error "Cloudflare API request failed (network or empty response)"
+        return 1
+    fi
+
+    if echo "$response" | jq -e '.success == false' &>/dev/null; then
+        bashio::log.error "Cloudflare API responded with error: $(echo "$response" | jq -c '.errors')"
+        return 1
+    fi
+
+    echo "$response"
 }
 
 cf_manage_record() {
