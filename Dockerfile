@@ -1,9 +1,14 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
+# Install Python and pip
 RUN apk add --no-cache python3 py3-pip curl
-RUN pip install requests
 
+# Install required Python packages
+RUN pip3 install --no-cache-dir requests
+
+# Copy main script
 COPY main.py /main.py
 
-CMD ["python3", "/main.py"]
+# Set as foreground process
+CMD [ "python3", "/main.py" ]
