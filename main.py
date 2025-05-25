@@ -12,18 +12,18 @@ def bashio_config(key):
 
 
 # Load configuration
-supervisor_token = bashio_config("supervisorToken")
-zone_id = bashio_config("zoneId")
-api_token = bashio_config("apiToken")
-hostfqdn = bashio_config("hostfqdn")
-v4_enabled = bashio_config("v4Enabled") == "true"
-prefix_length = int(bashio_config("prefixLength"))
-refresh = int(bashio_config("refresh"))
-dnsttl = int(bashio_config("dnsttl"))
-proxied = bashio_config("proxied").lower() == "true"
-legacy_mode = bashio_config("legacyMode").lower() == "true"
-custom_enabled = bashio_config("customEnabled").lower() == "true"
-custom_records = bashio_config("customRecords")
+supervisor_token = bashio_config("env_supervisorToken")
+zone_id = bashio_config("env_zoneId")
+api_token = bashio_config("env_apiToken")
+hostfqdn = bashio_config("env_hostfqdn")
+v4_enabled = bashio_config("env_v4Enabled") == "true"
+prefix_length = int(bashio_config("env_prefixLength"))
+refresh = int(bashio_config("env_refresh"))
+dnsttl = int(bashio_config("env_dnsttl"))
+proxied = bashio_config("env_proxied").lower() == "true"
+legacy_mode = bashio_config("env_legacyMode").lower() == "true"
+custom_enabled = bashio_config("env_customEnabled").lower() == "true"
+custom_records = bashio_config("env_customRecords")
 
 refresh_min = refresh // 60
 fail_count = 0
