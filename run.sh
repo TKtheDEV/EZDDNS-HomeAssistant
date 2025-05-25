@@ -159,6 +159,7 @@ while true; do
         sleep "$refresh"
         continue
     fi
+    bashio::log.info "before counters"
 
     ((successCount++))
     failCount=0
