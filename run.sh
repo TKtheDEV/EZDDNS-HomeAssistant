@@ -76,6 +76,7 @@ cf_api() {
 }
 
 cf_manage_record() {
+    bashio::log.info "manage record called"
     local fqdn=$1
     local record_type=$2
     local record_value=$3
@@ -172,7 +173,7 @@ while true; do
         fi
 
         bashio::log.info "IP Change Detected:"
-        bashio::log.info "IPv6: $v6 Prefix: $prefix IPv4: $v4"
+        bashio::log.info "IPv6: $v6 Prefix: $prefix/$prefixLength IPv4: $v4"
 
         [[ -n "$hostfqdn" && "$legacyMode" != "true" && "$v6" != "Unavailable" ]] && cf_manage_record "$hostfqdn" "AAAA" "$v6"
         [[ -n "$hostfqdn" && "$v4Enabled" == "true" && "$v4" != "Unavailable" ]] && cf_manage_record "$hostfqdn" "A" "$v4"
