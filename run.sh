@@ -69,10 +69,18 @@ cf_api() {
     local endpoint=$2
     local data=${3:-}
 
-    curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
+    bashio::log.info "Calling Cloudflare API: $method $endpoint"
+    if [[ -n "$data" ]]; then
+        bashio::log.info "Payload: $data"
+    fi
+
+    curl -sf -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
         -H "Authorization: Bearer ${apiToken}" \
         -H "Content-Type: application/json" \
-        ${data:+--data "$data"}
+        ${data:+--data "$data"} || {
+            bashio::log.error "Cloudflare API call failed: $method $endpoint"
+            return 1
+        }
 }
 
 cf_manage_record() {
@@ -86,14 +94,15 @@ cf_manage_record() {
         return 1
     fi
 
+    bashio::log.info "Checking if $fqdn ($record_type) already exists..."
     local record_id
     record_id=$(cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | grep -oE '"id":"[0-9a-fA-F]{32}"' | cut -d'"' -f4)
 
     if [[ "$record_id" =~ ^[0-9a-fA-F]{32}$ ]]; then
-        bashio::log.info "Updating $fqdn ($record_type)"
+        bashio::log.info "Updating existing DNS record $fqdn ($record_type)"
         cf_api PUT "dns_records/${record_id}" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     else
-        bashio::log.info "Creating $fqdn ($record_type)"
+        bashio::log.info "Creating new DNS record $fqdn ($record_type)"
         cf_api POST "dns_records" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}"
     fi
 }
