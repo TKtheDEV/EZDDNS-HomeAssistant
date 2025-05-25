@@ -1,5 +1,5 @@
 ---
-version: 2.2.2
+version: 3.0.0
 slug: ezddns-dev
 name: EZ DDNS DEV
 description: >
@@ -45,3 +45,17 @@ schema:
   customEnabled: bool
   customRecords:
     - str?
+
+environment:
+  SUPERVISOR_TOKEN: "{supervisorToken}"
+  ZONE_ID: "{zoneId}"
+  API_TOKEN: "{apiToken}"
+  HOSTFQDN: "{hostfqdn}"
+  V4_ENABLED: "{v4Enabled}"
+  PREFIX_LENGTH: "{prefixLength}"
+  REFRESH: "{refresh}"
+  DNS_TTL: "{dnsttl}"
+  PROXIED: "{proxied}"
+  LEGACY_MODE: "{legacyMode}"
+  CUSTOM_ENABLED: "{customEnabled}"
+  CUSTOM_RECORDS: "{customRecords}"
