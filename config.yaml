@@ -1,5 +1,5 @@
 ---
-version: 3.1.0
+version: 3.1.1
 slug: ezddns-dev
 name: EZ DDNS DEV
 description: >
@@ -12,7 +12,7 @@ arch:
   - armv7
   - i386
 hassio_api: true
-init: false
+init: true
 
 options:
   supervisorToken: null
