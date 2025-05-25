@@ -45,6 +45,7 @@ def get_ipv6_from_supervisor():
             headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
             timeout=5
         )
+        print(resp)
 
         try:
             data = resp.json()
