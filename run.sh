@@ -33,24 +33,26 @@ bashio::log.info "+++ EZDDNS Startup Complete +++"
 # ----------------------------------
 
 get_ipv6_from_supervisor() {
-    local api_response ipv6
-    api_response=$(curl -sfSL -H "Authorization: Bearer ${supervisorToken}" http://supervisor/network/info)
+    local ipv6 api_response
 
+    api_response=$(curl -sfSL -H "Authorization: Bearer ${supervisorToken}" http://supervisor/network/info)
     if [[ -z "$api_response" ]]; then
+        bashio::log.warning "Empty or failed response from Supervisor"
         echo "Unavailable"
-        return
+        return 0
     fi
 
-    echo "$api_response" | tr -d '\n' | sed 's/},{/}\n{/g' | while read -r entry; do
-        if echo "$entry" | grep -q '"scope":"global"' &&
-           ! echo "$entry" | grep -q '"deprecated":true' &&
-           echo "$entry" | grep -q '"valid":true'; then
-            ipv6=$(echo "$entry" | grep -oE '"address":"[^"]+"' | cut -d':' -f2- | tr -d '"' | cut -d'/' -f1)
-            [[ "$ipv6" =~ ^[0-9a-fA-F:]+$ ]] && echo "$ipv6" && return
-        fi
-    done
+    # Extract first matching global, valid, non-deprecated address
+    ipv6=$(echo "$api_response" | jq -r '
+        .data.interfaces[].ipv6[]
+        | select(.scope == "global" and .valid == true and (.deprecated != true))
+        | .address' | head -n 1)
 
-    echo "Unavailable"
+    if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
+        echo "Unavailable"
+    else
+        echo "${ipv6%%/*}"  # Strip CIDR
+    fi
 }
 
 get_ipv4() {
