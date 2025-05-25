@@ -7,8 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-# --- Load Environment Variables with Defaults and Type Safety ---
-
+# --- Load Environment Variables ---
 def get_env_bool(key, default="false"):
     return os.getenv(key, default).lower() in ("1", "true", "yes", "on")
 
@@ -32,12 +31,12 @@ LEGACY_MODE = get_env_bool("LEGACY_MODE", "false")
 CUSTOM_ENABLED = get_env_bool("CUSTOM_ENABLED", "false")
 CUSTOM_RECORDS = os.getenv("CUSTOM_RECORDS", "")
 
+# --- Global State ---
 v6_old = None
 v4_old = None
 prefix = None
 
-# --- Functions (same as before, abbreviated below for brevity) ---
-
+# --- Supervisor IPv6 Fetch ---
 def get_ipv6_from_supervisor():
     try:
         resp = requests.get(
@@ -45,7 +44,6 @@ def get_ipv6_from_supervisor():
             headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
             timeout=5
         )
-        print(resp)
 
         try:
             data = resp.json()
@@ -57,19 +55,19 @@ def get_ipv6_from_supervisor():
             if not iface.get("enabled"):
                 continue
 
-            ipv6_info = iface.get("ipv6", {})
-            for ip in ipv6_info.get("address", []):
+            for ip in iface.get("ipv6", {}).get("address", []):
                 ip_only = ip.split("/")[0]
-                if ip_only.startswith("200"):
+                if ip_only.startswith("200"):  # GUA only
                     logging.info(f"Selected IPv6: {ip_only}")
                     return ip_only
 
-        logging.warning("No global IPv6 address found.")
+        logging.warning("No valid global IPv6 address found.")
     except Exception as e:
         logging.error(f"IPv6 fetch failed: {e}")
 
     return "Unavailable"
 
+# --- Public IPv4 Fetch ---
 def get_public_ipv4():
     try:
         r = requests.get("https://one.one.one.one/cdn-cgi/trace", timeout=10)
@@ -80,6 +78,7 @@ def get_public_ipv4():
         logging.error(f"IPv4 fetch failed: {e}")
     return "Unavailable"
 
+# --- Cloudflare API Wrapper ---
 def cf_api(method, endpoint, data=None):
     url = f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/{endpoint}"
     headers = {
@@ -89,6 +88,10 @@ def cf_api(method, endpoint, data=None):
     return requests.request(method, url, headers=headers, json=data).json()
 
 def cf_manage_record(fqdn, record_type, record_value):
+    if not fqdn:
+        logging.warning(f"Skipping DNS update: fqdn is empty.")
+        return
+
     logging.info(f"Managing record {fqdn} ({record_type}) → {record_value}")
     query = cf_api("GET", f"dns_records?type={record_type}&name={fqdn}")
     record_id = query["result"][0]["id"] if query.get("result") else None
@@ -102,10 +105,28 @@ def cf_manage_record(fqdn, record_type, record_value):
     }
 
     if record_id:
-        return cf_api("PUT", f"dns_records/{record_id}", payload)
+        cf_api("PUT", f"dns_records/{record_id}", payload)
     else:
-        return cf_api("POST", "dns_records", payload)
+        cf_api("POST", "dns_records", payload)
 
+# --- IPv6 Prefix Generator ---
+def calculate_prefix(ipv6):
+    if ipv6 == "Unavailable":
+        return "Unavailable"
+
+    hextets = PREFIX_LENGTH // 16
+    parts = ipv6.split(":")[:hextets]
+    base = ":".join(parts)
+
+    if PREFIX_LENGTH % 16 != 0:
+        next_part = ipv6.split(":")[hextets]
+        padded = next_part.rjust(4, "0")
+        cut_len = PREFIX_LENGTH % 16 // 4
+        return base + ":" + padded[:cut_len]
+    else:
+        return base + ":"
+
+# --- Custom Records Parser ---
 def parse_custom_records(v4, v6, prefix):
     for line in CUSTOM_RECORDS.strip().splitlines():
         try:
@@ -122,41 +143,29 @@ def parse_custom_records(v4, v6, prefix):
         except Exception as e:
             logging.error(f"Failed to process custom record: {line} → {e}")
 
-def calculate_prefix(ipv6):
-    if ipv6 == "Unavailable":
-        return "Unavailable"
-    hextets = PREFIX_LENGTH // 16
-    parts = ipv6.split(":")[:hextets]
-    base = ":".join(parts)
-    if PREFIX_LENGTH % 16 != 0:
-        next_part = ipv6.split(":")[hextets]
-        padded = next_part.rjust(4, "0")
-        cut_len = PREFIX_LENGTH % 16 // 4
-        return base + ":" + padded[:cut_len]
-    return base + ":"
-
 # --- Main Loop ---
-
 logging.info("+++ EZDDNS Python add-on started +++")
 
 while True:
-    v6_new = get_ipv6_from_supervisor() if not LEGACY_MODE else "Unavailable"
+    v6_new = get_ipv6_from_supervisor()
     v4_new = get_public_ipv4() if V4_ENABLED else "Unavailable"
     prefix = calculate_prefix(v6_new) if not LEGACY_MODE else "Unavailable"
 
-    if v6_new == v6_old and v4_new == v4_old:
-        logging.info(f"No IP changes. Sleeping {REFRESH // 60} minutes...")
-    else:
-        logging.info(f"New IPs → IPv6: {v6_new} | IPv4: {v4_new} | Prefix: {prefix}")
+    logging.info(f"New IPs → IPv6: {v6_new} | IPv4: {v4_new} | Prefix: {prefix}")
+
+    if v6_new != v6_old or v4_new != v4_old:
         if HOSTFQDN:
             if v6_new != "Unavailable" and not LEGACY_MODE:
                 cf_manage_record(HOSTFQDN, "AAAA", v6_new)
             if v4_new != "Unavailable" and V4_ENABLED:
                 cf_manage_record(HOSTFQDN, "A", v4_new)
+
         if CUSTOM_ENABLED:
             parse_custom_records(v4_new, v6_new, prefix)
 
         v6_old = v6_new
         v4_old = v4_new
+    else:
+        logging.info(f"No IP changes. Sleeping {REFRESH // 60} minutes.")
 
     time.sleep(REFRESH)
