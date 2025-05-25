@@ -44,18 +44,24 @@ def get_ipv6_from_supervisor():
             "Authorization": f"Bearer {SUPERVISOR_TOKEN}"
         }, timeout=5)
 
-        # Validate JSON response
         if not resp.headers.get("Content-Type", "").startswith("application/json"):
             raise ValueError(f"Unexpected content type: {resp.headers.get('Content-Type')}")
 
         data = resp.json()
+
         for iface in data["data"]["interfaces"]:
-            if iface.get("ipv6", {}).get("enabled"):
-                for info in iface["ipv6"].get("address_info", []):
-                    if info.get("scope") == "global" and info.get("valid") and not info.get("deprecated"):
-                        return info["address"].split("/")[0]
+            if iface.get("enabled") and iface.get("ipv6", {}).get("address"):
+                for ip in iface["ipv6"]["address"]:
+                    # Skip ULA (fd..) and link-local (fe80..)
+                    if ip.startswith("fd") or ip.startswith("fe80"):
+                        continue
+                    # Assume it's valid if it starts with 200x and has a prefix
+                    if ip.startswith("200") and "/" in ip:
+                        return ip.split("/")[0]
+
     except Exception as e:
         logging.error(f"IPv6 fetch failed: {e}")
+
     return "Unavailable"
 
 def get_public_ipv4():
