@@ -1,5 +1,5 @@
 ---
-version: 3.0.11
+version: 3.1.0
 slug: ezddns-dev
 name: EZ DDNS DEV
 description: >
@@ -45,17 +45,3 @@ schema:
   customEnabled: bool
   customRecords:
     - str?
-
-environment:
-  env_supervisorToken: "{supervisorToken}"
-  env_zoneId: "{zoneId}"
-  env_apiToken: "{apiToken}"
-  env_hostfqdn: "{hostfqdn}"
-  env_v4Enabled: "{v4Enabled}"
-  env_prefixLength: "{prefixLength}"
-  env_refresh: "{refresh}"
-  env_dnsttl: "{dnsttl}"
-  env_proxied: "{proxied}"
-  env_legacyMode: "{legacyMode}"
-  env_customEnabled: "{customEnabled}"
-  env_customRecords: "{customRecords}"

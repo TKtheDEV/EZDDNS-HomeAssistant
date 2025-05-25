@@ -1,11 +1,8 @@
 ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM $BUILD_FROM
 
-# Install Python and pip
-RUN apk add --no-cache python3 py3-requests curl
+# Copy data for add-on
+COPY run.sh /
+RUN chmod a+x /run.sh
 
-# Copy main script
-COPY main.py /main.py
-
-# Set as foreground process
-CMD [ "python3", "/main.py" ]
+CMD [ "/run.sh" ]
