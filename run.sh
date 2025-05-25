@@ -19,6 +19,8 @@ customRecords=$(bashio::config "customRecords")
 
 refreshMin=$((refresh / 60))
 hextets=$((prefixLength / 16))
+failCount=0
+successCount=0
 
 v6=""
 v4=""
@@ -159,10 +161,7 @@ while true; do
     fi
     
     bashio::log.info "before counters"
-    : "${successCount:=0}"
-    : "${failCount:=0}"
-
-    ((successCount++))
+    successCount=$((successCount + 1))
     failCount=0
 
     bashio::log.info "before IP changed"
