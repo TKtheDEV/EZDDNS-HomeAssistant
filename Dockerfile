@@ -2,7 +2,7 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install Python and pip
-RUN apk add --no-cache python3 python3-requests curl
+RUN apk add --no-cache python3 py3-requests curl
 
 # Copy main script
 COPY main.py /main.py
