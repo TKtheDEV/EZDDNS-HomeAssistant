@@ -1,5 +1,5 @@
 ---
-version: 3.3.3
+version: 3.3.4
 slug: ezddns-dev
 name: EZ DDNS DEV
 description: >
@@ -33,8 +33,8 @@ options:
 #   - A.example.com,A
 
 schema:
-  supervisorToken: password
-  zoneId: str?
+  supervisorToken: password?
+  zoneId: str
   apiToken: password
   hostfqdn: str?
   v4Enabled: bool
