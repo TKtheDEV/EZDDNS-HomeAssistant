@@ -33,29 +33,47 @@ SUCCESS_COUNT=0
 # ----------------------------------
 
 log_error() {
-    printf "[ERROR] %s\n" "$1" >&2
+    bashio::log.error "$1"
+}
+
+log_warning() {
+    bashio::log.warning "$1"
 }
 
 log_info() {
-    printf "[INFO] %s\n" "$1"
+    bashio::log.info "$1"
 }
 
-fetch_ipv6_from_supervisor() {
+fetch_ipv6_bashio() {
+    log_info "IP retrieval via Supervisor backend doesn't seem to be set up correctly, using compatibility mode (bashio)"
+    bashio::cache.flush_all
+    local ipv6
+    ipv6=$(bashio::network.ipv6_address | grep -Eo '([0-9a-fA-F:]{3,39})' | grep -Ev '^(fe80::|fd)' | head -n1)
+    if [[ -z "$ipv6" ]]; then
+        log_error "No valid global IPv6 address was found"
+        echo "Unavailable"
+    else
+        echo "$ipv6"
+    fi
+}
+
+fetch_ipv6() {
     local response ipv6
+
+    if [[ -z "$SUPERVISOR_TOKEN" ]]; then
+        fetch_ipv6_bashio
+        return
+    fi
+
     if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
-        log_error "Failed to fetch IPv6 from Supervisor API"
-        echo "Unavailable"
+        log_error "Failed to fetch data from Supervisor API. Please verify Supervisor token is valid! Error: ${response}"
+        fetch_ipv6_bashio
         return
     fi
 
-    if ! ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1); then
-        log_error "Invalid JSON or no usable IPv6 address"
-        echo "Unavailable"
-        return
-    fi
-
+    ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1)
     if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
-        log_error "Supervisor returned invalid or no global IPv6"
+        log_error "No valid global IPv6 address was found"
         echo "Unavailable"
     else
         echo "${ipv6%%/*}"
@@ -189,7 +207,7 @@ main() {
     while true; do
         local new_v6 new_v4
 
-        if ! new_v6=$(fetch_ipv6_from_supervisor); then new_v6="Unavailable"; fi
+        if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
         if [[ "$V4_ENABLED" == "true" ]]; then
             if ! new_v4=$(fetch_ipv4); then new_v4="Unavailable"; fi
         else

@@ -1,5 +1,5 @@
 ---
-version: 3.3.1
+version: 3.3.2
 slug: ezddns-dev
 name: EZ DDNS DEV
 description: >
@@ -15,7 +15,7 @@ hassio_api: true
 init: false
 
 options:
-  supervisorToken: null
+  supervisorToken:
   zoneId: null
   apiToken: null
   hostfqdn: null
