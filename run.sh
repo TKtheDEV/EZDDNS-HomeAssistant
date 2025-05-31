@@ -164,20 +164,33 @@ process_custom_records() {
     while IFS=, read -r record_fqdn record_type suffix; do
         [[ -z "$record_fqdn" || -z "$record_type" ]] && continue
 
-        local value=""
+        local value="Unavailable"
         if [[ "$record_type" == "A" ]]; then
-            value="$CURRENT_V4"
+            if [[ "$CURRENT_V4" != "Unavailable" ]]; then
+                value="$CURRENT_V4"
+            else
+                log_info "Skipping $record_fqdn: no valid IPv4 available."
+                continue
+            fi
         elif [[ "$record_type" == "AAAA" ]]; then
             if [[ -n "$suffix" ]]; then
                 if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
                     value="${CURRENT_PREFIX}${suffix}"
                 else
-                    log_error "Invalid custom IPv6 suffix for $record_fqdn"
+                    log_error "Skipping $record_fqdn: invalid suffix or unavailable IPv6 prefix."
                     continue
                 fi
             else
-                value="$CURRENT_V6"
+                if [[ "$CURRENT_V6" != "Unavailable" ]]; then
+                    value="$CURRENT_V6"
+                else
+                    log_info "Skipping $record_fqdn: no valid IPv6 available."
+                    continue
+                fi
             fi
+        else
+            log_error "Unknown record type: $record_type for $record_fqdn. Skipping."
+            continue
         fi
 
         get_or_create_dns_record "$record_fqdn" "$record_type" "$value"
