@@ -1,9 +1,5 @@
 ---
 configuration:
-  supervisorToken:
-    name: Home Assistant Supervisor Token
-    description: >-
-      https://developers.home-assistant.io/docs/supervisor/development/#supervisor-api-access
   zoneId:
     name: DNS-Zone-ID
     description: >-
