@@ -32,34 +32,29 @@ SUCCESS_COUNT=0
 # ----------------------------------
 
 log_error() {
-    bashio::log.error "$1"
-}
-
-log_warning() {
-    bashio::log.warning "$1"
+    printf "[ERROR] %s\n" "$1" >&2
 }
 
 log_info() {
-    bashio::log.info "$1"
+    printf "[INFO] %s\n" "$1"
 }
 
-fetch_ipv6() {
+fetch_ipv6_from_supervisor() {
     local response ipv6
     if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
-        log_error "No response from Supervisor API"
+        log_error "Failed to fetch IPv6 from Supervisor API"
         echo "Unavailable"
         return
     fi
 
     if ! ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1); then
-        log_error "No valid IP address returned by Supervisor API..."
+        log_error "Invalid JSON or no usable IPv6 address"
         echo "Unavailable"
-    else
-        echo "${ipv6%%/*}"
+        return
     fi
 
     if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
-        log_error "Invalid address format"
+        log_error "Supervisor returned invalid or no global IPv6"
         echo "Unavailable"
     else
         echo "${ipv6%%/*}"
@@ -69,7 +64,7 @@ fetch_ipv6() {
 fetch_ipv4() {
     local ipv4
     if ! ipv4=$(curl -sf -4 https://one.one.one.one/cdn-cgi/trace | grep -Eo '^ip=[0-9\.]+' | cut -d= -f2); then
-        log_error "No valid legacy address returned by Cloudflare API..."
+        log_error "Failed to fetch IPv4 from Cloudflare"
         echo "Unavailable"
         return
     fi
@@ -77,7 +72,7 @@ fetch_ipv4() {
     if [[ "$ipv4" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "$ipv4"
     else
-        log_error "Invalid address format"
+        log_error "Invalid IPv4 address format"
         echo "Unavailable"
     fi
 }
@@ -193,7 +188,7 @@ main() {
     while true; do
         local new_v6 new_v4
 
-        if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
+        if ! new_v6=$(fetch_ipv6_from_supervisor); then new_v6="Unavailable"; fi
         if [[ "$V4_ENABLED" == "true" ]]; then
             if ! new_v4=$(fetch_ipv4); then new_v4="Unavailable"; fi
         else
