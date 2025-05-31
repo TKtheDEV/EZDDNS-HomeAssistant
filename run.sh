@@ -6,7 +6,6 @@ shopt -s nocasematch
 # GLOBALS
 # ----------------------------------
 
-SUPERVISOR_TOKEN=$(bashio::config "supervisorToken")
 ZONE_ID=$(bashio::config "zoneId")
 API_TOKEN=$(bashio::config "apiToken")
 HOSTFQDN=$(bashio::config "hostfqdn")
@@ -44,36 +43,30 @@ log_info() {
     bashio::log.info "$1"
 }
 
-fetch_ipv6_bashio() {
-    log_info "IP retrieval via Supervisor backend doesn't seem to be set up correctly, using compatibility mode (bashio)"
-    bashio::cache.flush_all
+fallback_ipv6() {
+    log_info "Supervisor token unavailable. Using bashio network helper to get IPv6"
     local ipv6
     ipv6=$(bashio::network.ipv6_address | grep -Eo '([0-9a-fA-F:]{3,39})' | grep -Ev '^(fe80::|fd)' | head -n1)
-    if [[ -z "$ipv6" ]]; then
-        log_error "No valid global IPv6 address was found"
-        echo "Unavailable"
-    else
-        echo "$ipv6"
-    fi
+    [[ -z "$ipv6" ]] && log_error "No valid global IPv6 address found using fallback method..." && echo "Unavailable" || echo "$ipv6"
 }
 
 fetch_ipv6() {
     local response ipv6
 
     if [[ -z "$SUPERVISOR_TOKEN" ]]; then
-        fetch_ipv6_bashio
+        fallback_ipv6
         return
     fi
 
     if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
-        log_error "Failed to fetch data from Supervisor API. Please verify Supervisor token is valid! Error: ${response}"
-        fetch_ipv6_bashio
+        log_error "Failed to contact Supervisor API. Using fallback method..."
+        fallback_ipv6
         return
     fi
 
     ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1)
     if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
-        log_error "No valid global IPv6 address was found"
+        log_error "No valid global IPv6 address found..."
         echo "Unavailable"
     else
         echo "${ipv6%%/*}"
@@ -83,17 +76,11 @@ fetch_ipv6() {
 fetch_ipv4() {
     local ipv4
     if ! ipv4=$(curl -sf -4 https://one.one.one.one/cdn-cgi/trace | grep -Eo '^ip=[0-9\.]+' | cut -d= -f2); then
-        log_error "Failed to fetch IPv4 from Cloudflare"
+        log_error "Failed to fetch IPv4 using Cloudflare API..."
         echo "Unavailable"
         return
     fi
-
-    if [[ "$ipv4" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "$ipv4"
-    else
-        log_error "Invalid IPv4 address format"
-        echo "Unavailable"
-    fi
+    [[ "$ipv4" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "$ipv4" || log_error "Invalid IPv4 format" && echo "Unavailable"
 }
 
 call_cf_api() {
@@ -130,12 +117,12 @@ get_or_create_dns_record() {
     local record_id
 
     if [[ -z "$fqdn" || -z "$record_type" || -z "$content" || "$content" == "Unavailable" ]]; then
-        log_error "Missing parameters for DNS record management: $fqdn $record_type $content"
+        log_error "Invalid parameters for DNS record: $fqdn $record_type $content"
         return 1
     fi
 
     if ! record_id=$(call_cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | jq -r '.result[0].id // empty'); then
-        log_error "Unable to query existing record ID for $fqdn"
+        log_error "Failed to get record ID for $fqdn"
         return 1
     fi
 
@@ -176,7 +163,7 @@ generate_ipv6_prefix() {
 
 process_custom_records() {
     if [[ -z "$CUSTOM_RECORDS" ]]; then
-        log_info "No custom records defined."
+        log_info "No custom records defined"
         return
     fi
 
@@ -191,7 +178,7 @@ process_custom_records() {
                 if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
                     value="${CURRENT_PREFIX}${suffix}"
                 else
-                    log_error "Invalid custom IPv6 suffix for $record_fqdn"
+                    log_error "Invalid suffix for $record_fqdn"
                     continue
                 fi
             else
@@ -217,7 +204,7 @@ main() {
         if [[ "$new_v6" == "Unavailable" && "$new_v4" == "Unavailable" ]]; then
             FAIL_COUNT=$((FAIL_COUNT + 1))
             SUCCESS_COUNT=0
-            log_error "No usable IPs. Retry in $REFRESH_MIN minutes. (${FAIL_COUNT}x)"
+            log_error "No usable IPs. Retrying in $REFRESH_MIN minutes. (${FAIL_COUNT}x)"
             sleep "$REFRESH"
             continue
         fi
@@ -246,7 +233,7 @@ main() {
             [[ "$CUSTOM_ENABLED" == "true" ]] && process_custom_records
 
             SUCCESS_COUNT=0
-            log_info "DNS update complete. Sleeping for $REFRESH_MIN minutes."
+            log_info "DNS update complete. Sleeping $REFRESH_MIN minutes."
         else
             log_info "No IP change for $((SUCCESS_COUNT * REFRESH_MIN)) minutes."
         fi
