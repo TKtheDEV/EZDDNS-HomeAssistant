@@ -32,11 +32,15 @@ SUCCESS_COUNT=0
 # ----------------------------------
 
 log_error() {
-    printf "[ERROR] %s\n" "$1" >&2
+    bashio::log.error "$1"
+}
+
+log_warning() {
+    bashio::log.warning "$1"
 }
 
 log_info() {
-    printf "[INFO] %s\n" "$1"
+    bashio::log.info "$1"
 }
 
 fetch_ipv6_from_supervisor() {
@@ -231,13 +235,25 @@ main() {
             log_info "IP Change Detected:"
             log_info "IPv6: $CURRENT_V6 Prefix: $CURRENT_PREFIX/$PREFIX_LENGTH IPv4: $CURRENT_V4"
 
-            [[ -n "$HOSTFQDN" && "$LEGACY_MODE" != "true" && "$CURRENT_V6" != "Unavailable" ]] && \
-                get_or_create_dns_record "$HOSTFQDN" "AAAA" "$CURRENT_V6"
+            if [[ -n "$HOSTFQDN" && "$LEGACY_MODE" != "true" ]]; then
+                if [[ "$CURRENT_V6" != "Unavailable" ]]; then
+                    get_or_create_dns_record "$HOSTFQDN" "AAAA" "$CURRENT_V6"
+                else
+                    log_error "Skipping AAAA record for $HOSTFQDN: no valid IPv6 available."
+                fi
+            fi
 
-            [[ -n "$HOSTFQDN" && "$V4_ENABLED" == "true" && "$CURRENT_V4" != "Unavailable" ]] && \
-                get_or_create_dns_record "$HOSTFQDN" "A" "$CURRENT_V4"
+            if [[ -n "$HOSTFQDN" && "$V4_ENABLED" == "true" ]]; then
+                if [[ "$CURRENT_V4" != "Unavailable" ]]; then
+                    get_or_create_dns_record "$HOSTFQDN" "A" "$CURRENT_V4"
+                else
+                    log_error "Skipping A record for $HOSTFQDN: no valid IPv4 available."
+                fi
+            fi
 
-            [[ "$CUSTOM_ENABLED" == "true" ]] && process_custom_records
+            if [[ "$CUSTOM_ENABLED" == "true" ]]; then
+                process_custom_records
+            fi
 
             SUCCESS_COUNT=0
             log_info "DNS update complete. Sleeping for $REFRESH_MIN minutes."
