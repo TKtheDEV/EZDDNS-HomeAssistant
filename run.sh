@@ -89,7 +89,7 @@ call_cf_api() {
 
     if [[ -z "$method" || -z "$endpoint" ]]; then
         log_error "Cloudflare API call missing method or endpoint"
-        return 1
+        continue
     fi
 
     if ! response=$(curl -sfSL -X "$method" "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/${endpoint}" \
@@ -97,12 +97,12 @@ call_cf_api() {
         -H "Content-Type: application/json" \
         ${payload:+--data "$payload"}); then
         log_error "Cloudflare API call failed: $method $endpoint"
-        return 1
+        continue
     fi
 
     if ! jq -e '.success == true' <<< "$response" >/dev/null 2>&1; then
         log_error "Cloudflare API error: $(jq -c '.errors' <<< "$response")"
-        return 1
+        continue
     fi
 
     printf "%s\n" "$response"
@@ -116,12 +116,12 @@ get_or_create_dns_record() {
 
     if [[ -z "$fqdn" || -z "$record_type" || -z "$content" || "$content" == "Unavailable" ]]; then
         log_error "Missing parameters for DNS record management: $fqdn $record_type $content"
-        return 1
+        continue
     fi
 
     if ! record_id=$(call_cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | jq -r '.result[0].id // empty'); then
         log_error "Unable to query existing record ID for $fqdn"
-        return 1
+        continue
     fi
 
     local payload
@@ -134,10 +134,10 @@ get_or_create_dns_record() {
         '{type:$type,name:$name,content:$content,ttl:$ttl,proxied:$proxied}')
 
     if [[ -n "$record_id" ]]; then
-        call_cf_api PUT "dns_records/${record_id}" "$payload" || return 1
+        call_cf_api PUT "dns_records/${record_id}" "$payload" || continue
         log_info "Updated DNS record: $fqdn -> $content"
     else
-        call_cf_api POST "dns_records" "$payload" || return 1
+        call_cf_api POST "dns_records" "$payload" || continue
         log_info "Created DNS record: $fqdn -> $content"
     fi
 }
@@ -173,7 +173,7 @@ process_custom_records() {
             if [[ "$CURRENT_V4" != "Unavailable" ]]; then
                 value="$CURRENT_V4"
             else
-                log_info "Skipping $record_fqdn: no valid IPv4 available."
+                log_warning "Skipping $record_fqdn: no valid IPv4 available."
                 continue
             fi
         elif [[ "$record_type" == "AAAA" ]]; then
@@ -181,14 +181,14 @@ process_custom_records() {
                 if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
                     value="${CURRENT_PREFIX}${suffix}"
                 else
-                    log_error "Skipping $record_fqdn: invalid suffix or unavailable IPv6 prefix."
+                    log_warning "Skipping $record_fqdn: invalid suffix or unavailable IPv6 prefix."
                     continue
                 fi
             else
                 if [[ "$CURRENT_V6" != "Unavailable" ]]; then
                     value="$CURRENT_V6"
                 else
-                    log_info "Skipping $record_fqdn: no valid IPv6 available."
+                    log_warning "Skipping $record_fqdn: no valid IPv6 available."
                     continue
                 fi
             fi
@@ -215,7 +215,7 @@ main() {
         if [[ "$new_v6" == "Unavailable" && "$new_v4" == "Unavailable" ]]; then
             FAIL_COUNT=$((FAIL_COUNT + 1))
             SUCCESS_COUNT=0
-            log_error "No usable IPs. Retry in $REFRESH_MIN minutes. (${FAIL_COUNT}x)"
+            log_error "No usable IP found since ${REFRESH_MIN*$FAIL_COUNT} minutes. Retry in $REFRESH_MIN minutes."
             sleep "$REFRESH"
             continue
         fi
@@ -258,7 +258,7 @@ main() {
             SUCCESS_COUNT=0
             log_info "DNS update complete. Sleeping for $REFRESH_MIN minutes."
         else
-            log_info "No IP change for $((SUCCESS_COUNT * REFRESH_MIN)) minutes."
+            log_info "No IP change for ${SUCCESS_COUNT * REFRESH_MIN} minutes."
         fi
 
         sleep "$REFRESH"
