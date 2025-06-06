@@ -89,7 +89,7 @@ call_cf_api() {
 
     if [[ -z "$method" || -z "$endpoint" ]]; then
         log_error "Cloudflare API call missing method or endpoint"
-        continue
+        return
     fi
 
     if ! response=$(curl -sfSL -X "$method" "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/${endpoint}" \
@@ -97,12 +97,17 @@ call_cf_api() {
         -H "Content-Type: application/json" \
         ${payload:+--data "$payload"}); then
         log_error "Cloudflare API call failed: $method $endpoint"
-        continue
+        return
+    fi
+
+    if [[ -z "$response" ]]; then
+        log_error "Cloudflare API returned empty response"
+        return
     fi
 
     if ! jq -e '.success == true' <<< "$response" >/dev/null 2>&1; then
         log_error "Cloudflare API error: $(jq -c '.errors' <<< "$response")"
-        continue
+        return
     fi
 
     printf "%s\n" "$response"
@@ -116,12 +121,12 @@ get_or_create_dns_record() {
 
     if [[ -z "$fqdn" || -z "$record_type" || -z "$content" || "$content" == "Unavailable" ]]; then
         log_error "Missing parameters for DNS record management: $fqdn $record_type $content"
-        continue
+        return
     fi
 
     if ! record_id=$(call_cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | jq -r '.result[0].id // empty'); then
         log_error "Unable to query existing record ID for $fqdn"
-        continue
+        return
     fi
 
     local payload
@@ -134,11 +139,13 @@ get_or_create_dns_record() {
         '{type:$type,name:$name,content:$content,ttl:$ttl,proxied:$proxied}')
 
     if [[ -n "$record_id" ]]; then
-        call_cf_api PUT "dns_records/${record_id}" "$payload" || continue
-        log_info "Updated DNS record: $fqdn -> $content"
+        if call_cf_api PUT "dns_records/${record_id}" "$payload"; then
+            log_info "Updated DNS record: $fqdn -> $content"
+        fi
     else
-        call_cf_api POST "dns_records" "$payload" || continue
-        log_info "Created DNS record: $fqdn -> $content"
+        if call_cf_api POST "dns_records" "$payload"; then
+            log_info "Created DNS record: $fqdn -> $content"
+        fi
     fi
 }
 
@@ -215,7 +222,7 @@ main() {
         if [[ "$new_v6" == "Unavailable" && "$new_v4" == "Unavailable" ]]; then
             FAIL_COUNT=$((FAIL_COUNT + 1))
             SUCCESS_COUNT=0
-            log_error "No usable IP found since ${REFRESH_MIN*$FAIL_COUNT} minutes. Retry in $REFRESH_MIN minutes."
+            log_error "No usable IP found since $((REFRESH_MIN * FAIL_COUNT)) minutes. Retry in $REFRESH_MIN minutes."
             sleep "$REFRESH"
             continue
         fi
@@ -258,7 +265,7 @@ main() {
             SUCCESS_COUNT=0
             log_info "DNS update complete. Sleeping for $REFRESH_MIN minutes."
         else
-            log_info "No IP change for ${SUCCESS_COUNT * REFRESH_MIN} minutes."
+            log_info "No IP change for $((SUCCESS_COUNT * REFRESH_MIN)) minutes."
         fi
 
         sleep "$REFRESH"
