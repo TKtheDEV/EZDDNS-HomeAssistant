@@ -1,211 +1,277 @@
 #!/usr/bin/with-contenv bashio
+set -o pipefail
+shopt -s nocasematch
 
-# Load configuration variables from Home Assistant's add-on options
-zoneId=$(bashio::config "zoneId")
-apiToken=$(bashio::config "apiToken")
-hostfqdn=$(bashio::config "hostfqdn")
-v4Enabled=$(bashio::config "v4Enabled")
-prefixLength=$(bashio::config "prefixLength")
-refresh=$(bashio::config "refresh")
-dnsttl=$(bashio::config "dnsttl")
-proxied=$(bashio::config "proxied")
-legacyMode=$(bashio::config "legacyMode")
-customEnabled=$(bashio::config "customEnabled")
-customRecords=$(bashio::config "customRecords")
+# ----------------------------------
+# GLOBALS
+# ----------------------------------
 
-# Convert refresh time from seconds to minutes
-refreshMin=$((refresh / 60))
-failCount=0  # Counter for failed attempts
-successCount=0  # Counter for successful attempts
-hextets=$((prefixLength / 16))  # Number of IPv6 hextets based on prefix length
-v6new=
-v4new=
-v6=
-v4=
+ZONE_ID=$(bashio::config "zoneId")
+API_TOKEN=$(bashio::config "apiToken")
+HOSTFQDN=$(bashio::config "hostfqdn")
+V4_ENABLED=$(bashio::config "v4Enabled")
+PREFIX_LENGTH=$(bashio::config "prefixLength")
+REFRESH=$(bashio::config "refresh")
+DNS_TTL=$(bashio::config "dnsttl")
+PROXIED=$(bashio::config "proxied")
+LEGACY_MODE=$(bashio::config "legacyMode")
+CUSTOM_ENABLED=$(bashio::config "customEnabled")
+CUSTOM_RECORDS=$(bashio::config "customRecords")
 
-# Function to make Cloudflare API requests (GET, POST, PUT)
-cf_api() {
-    method=$1  # HTTP method (GET, POST, PUT)
-    endpoint=$2  # API endpoint
-    data=${3:-}  # Data payload for POST/PUT requests (optional)
+REFRESH_MIN=$((REFRESH / 60))
+HEXTETS=$((PREFIX_LENGTH / 16))
 
-    # Perform the API call using curl and capture response
-    curl -s -X "$method" "https://api.cloudflare.com/client/v4/zones/${zoneId}/${endpoint}" \
-        -H "Authorization: Bearer ${apiToken}" \
-        -H "Content-Type: application/json" \
-        ${data:+--data "$data"} 
+CURRENT_V6=""
+CURRENT_V4=""
+CURRENT_PREFIX=""
+FAIL_COUNT=0
+SUCCESS_COUNT=0
+
+# ----------------------------------
+# FUNCTIONS
+# ----------------------------------
+
+log_error() {
+    bashio::log.error "$1"
 }
 
-# Function to manage DNS records (create or update)
-cf_manage_record() {
-    local fqdn=$1       # Fully qualified domain name (FQDN)
-    local record_type=$2  # DNS record type (A or AAAA)
-    local record_value=$3  # The value for the DNS record (IPv4 or IPv6)
+log_warning() {
+    bashio::log.warning "$1"
+}
 
-    # Validate inputs
-    if [[ -z "$fqdn" || -z "$record_type" || -z "$record_value" ]]; then
-        printf "\nError: Missing parameters for cf_manage_record: fqdn='%s', type='%s', value='%s'\n+++\n" \
-            "$fqdn" "$record_type" "$record_value" >&2
-        return 1
+log_info() {
+    bashio::log.info "$1"
+}
+
+fetch_ipv6() {
+    local response ipv6
+    if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
+        log_error "Communication with Supervisor API failed"
+        echo "Unavailable"
+        return
     fi
 
-    # Check if the record exists
-    local record_id
-    record_id=$(cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | grep -oE '"id":"[0-9a-fA-F]{32}"' | grep -oE '[0-9a-fA-F]{32}')
+    if ! ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1); then
+        log_error "Supervisor returned invalid JSON or no global IPv6"
+        echo "Unavailable"
+        return
+    fi
 
-    # Create or update the record
-    if [[ $record_id =~ ^[0-9a-fA-F]{32}$ ]]; then
-        printf "\nUpdating record for %s (%s)\n" "$fqdn" "$record_type"
-        cf_api PUT "dns_records/${record_id}" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}" || {
-            printf "\nError: Failed to update record for %s (%s)\n+++\n" "$fqdn" "$record_type" >&2
-            return 1
-        }
+    if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
+        log_error "Invalid IPv6 address format"
+        echo "Unavailable"
     else
-        printf "\nCreating new record for %s (%s)\n" "$fqdn" "$record_type"
-        cf_api POST "dns_records" "{\"type\":\"${record_type}\",\"name\":\"${fqdn}\",\"content\":\"${record_value}\",\"ttl\":${dnsttl},\"proxied\":${proxied}}" || {
-            printf "\nError: Failed to create record for %s (%s)\n+++\n" "$fqdn" "$record_type" >&2
-            return 1
-        }
+        echo "${ipv6%%/*}"
     fi
 }
 
-printf "+++\n Startup of EZDDNS by TKtheDEV complete...\n+++"
-# Function to process custom DNS records
-parse_records() {
-    # Validate if customRecords is not empty
-    if [[ -z "$customRecords" ]]; then
-        printf "\nError: customRecords is empty or not set.\n+++\n" >&2
-        return 1
+fetch_ipv4() {
+    local ipv4
+    if ! ipv4=$(curl -sf -4 https://one.one.one.one/cdn-cgi/trace | grep -Eo '^ip=[0-9\.]+' | cut -d= -f2); then
+        log_error "Failed to fetch IPv4 from Cloudflare"
+        echo "Unavailable"
+        return
     fi
 
-    # Process each record in customRecords
-    printf "%s\n" "$customRecords" | while IFS=, read -r record_fqdn record_type suffix; do
-        # Skip empty or malformed lines
-        if [[ -z "$record_fqdn" || -z "$record_type" ]]; then
-            printf "\nWarning: Skipping invalid record entry: %s,%s,%s\n+++\n" "$record_fqdn" "$record_type" "$suffix" >&2
-            continue
-        fi
+    if [[ "$ipv4" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$ipv4"
+    else
+        log_error "Invalid IPv4 address format"
+        echo "Unavailable"
+    fi
+}
 
-        # Validate record type
-        if [[ "$record_type" != "A" && "$record_type" != "AAAA" ]]; then
-            printf "\nWarning: Invalid record type '%s' for '%s'. Skipping.\n+++\n" "$record_type" "$record_fqdn" >&2
-            continue
-        fi
+call_cf_api() {
+    local method=$1
+    local endpoint=$2
+    local payload=${3:-}
+    local response
 
-        # Determine the appropriate value (IPv4 or IPv6) for the record
-        local record_value
+    if [[ -z "$method" || -z "$endpoint" ]]; then
+        log_error "Cloudflare API call missing method or endpoint"
+        return
+    fi
+
+    if ! response=$(curl -sfSL -X "$method" "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/${endpoint}" \
+        -H "Authorization: Bearer ${API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        ${payload:+--data "$payload"}); then
+        log_error "Cloudflare API call failed: $method $endpoint"
+        return
+    fi
+
+    if [[ -z "$response" ]]; then
+        log_error "Cloudflare API returned empty response"
+        return
+    fi
+
+    if ! jq -e '.success == true' <<< "$response" >/dev/null 2>&1; then
+        log_error "Cloudflare API error: $(jq -c '.errors' <<< "$response")"
+        return
+    fi
+
+    printf "%s\n" "$response"
+}
+
+get_or_create_dns_record() {
+    local fqdn=$1
+    local record_type=$2
+    local content=$3
+    local record_id
+
+    if [[ -z "$fqdn" || -z "$record_type" || -z "$content" || "$content" == "Unavailable" ]]; then
+        log_error "Missing parameters for DNS record management: $fqdn $record_type $content"
+        return
+    fi
+
+    if ! record_id=$(call_cf_api GET "dns_records?type=${record_type}&name=${fqdn}" | jq -r '.result[0].id // empty'); then
+        log_error "Unable to query existing record ID for $fqdn"
+        return
+    fi
+
+    local payload
+    payload=$(jq -cn \
+        --arg type "$record_type" \
+        --arg name "$fqdn" \
+        --arg content "$content" \
+        --argjson ttl "$DNS_TTL" \
+        --argjson proxied "$PROXIED" \
+        '{type:$type,name:$name,content:$content,ttl:$ttl,proxied:$proxied}')
+
+    if [[ -n "$record_id" ]]; then
+        if call_cf_api PUT "dns_records/${record_id}" "$payload"; then
+            log_info "Updated DNS record: $fqdn -> $content"
+        fi
+    else
+        if call_cf_api POST "dns_records" "$payload"; then
+            log_info "Created DNS record: $fqdn -> $content"
+        fi
+    fi
+}
+
+generate_ipv6_prefix() {
+    local ip=$1
+    local prefix_tmp next_hextet padded remainder cut_length
+
+    prefix_tmp=$(cut -d':' -f1-"$HEXTETS" <<< "$ip")
+    next_hextet=$(cut -d':' -f$((HEXTETS + 1)) <<< "$ip")
+    padded=$(printf "%04s" "$next_hextet")
+    remainder=$((PREFIX_LENGTH % 16))
+
+    if (( remainder > 0 )); then
+        cut_length=$((remainder / 4))
+        echo "${prefix_tmp}:$(cut -c1-"$cut_length" <<< "$padded")"
+    else
+        echo "${prefix_tmp}:"
+    fi
+}
+
+process_custom_records() {
+    if [[ -z "$CUSTOM_RECORDS" ]]; then
+        log_warning "No custom records defined."
+        return
+    fi
+
+    while IFS=, read -r record_fqdn record_type suffix; do
+        [[ -z "$record_fqdn" || -z "$record_type" ]] && continue
+
+        local value="Unavailable"
         if [[ "$record_type" == "A" ]]; then
-            record_value="$v4"  # Use IPv4 for "A" records
+            if [[ "$CURRENT_V4" != "Unavailable" ]]; then
+                value="$CURRENT_V4"
+            else
+                log_error "Skipping A record for $record_fqdn: no valid IPv4 available."
+                continue
+            fi
         elif [[ "$record_type" == "AAAA" ]]; then
             if [[ -n "$suffix" ]]; then
-                # Use prefix + suffix for custom AAAA records
-                if [[ "$prefix" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
-                    record_value="${prefix}${suffix}"
+                if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
+                    value="${CURRENT_PREFIX}${suffix}"
                 else
-                    printf "\nWarning: Invalid prefix or suffix for record '%s'. Skipping.\n" "$record_fqdn" >&2
+                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available or misformed suffix."
                     continue
                 fi
             else
-                record_value="$v6"  # Use host's IPv6 if no suffix is specified
+                if [[ "$CURRENT_V6" != "Unavailable" ]]; then
+                    value="$CURRENT_V6"
+                else
+                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available."
+                    continue
+                fi
             fi
-        fi
-
-        # Ensure the record value is valid before proceeding
-        if [[ -z "$record_value" || "$record_value" == "Unavailable" || 
-              ("$record_type" == "AAAA" && ! "$record_value" =~ ^([0-9a-fA-F:]+:+)+[0-9a-fA-F]{1,4}$) ]]; then
-            printf "\nWarning: Invalid value for record '%s'. Skipping.\n+++\n" "$record_fqdn" >&2
+        else
+            log_error "Unknown record type: $record_type for $record_fqdn. Skipping."
             continue
         fi
 
-        # Manage the record (create or update)
-        if cf_manage_record "$record_fqdn" "$record_type" "$record_value"; then
-            printf "\n+++\n"
+        get_or_create_dns_record "$record_fqdn" "$record_type" "$value"
+    done <<< "$CUSTOM_RECORDS"
+}
+
+main() {
+    while true; do
+        local new_v6 new_v4
+
+        if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
+        if [[ "$V4_ENABLED" == "true" ]]; then
+            if ! new_v4=$(fetch_ipv4); then new_v4="Unavailable"; fi
         else
-            printf "\nError: Failed to process record '%s'.\n" "$record_fqdn" >&2
+            new_v4="Unavailable"
         fi
+
+        if [[ "$new_v6" == "Unavailable" && "$new_v4" == "Unavailable" ]]; then
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            SUCCESS_COUNT=0
+            log_error "No usable IP found since $((REFRESH_MIN * FAIL_COUNT)) minutes. Retrying in $REFRESH_MIN minutes."
+            sleep "$REFRESH"
+            continue
+        fi
+
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        FAIL_COUNT=0
+
+        if [[ "$new_v6" != "$CURRENT_V6" || "$new_v4" != "$CURRENT_V4" ]]; then
+            CURRENT_V6="$new_v6"
+            CURRENT_V4="$new_v4"
+
+            CURRENT_PREFIX="Unavailable"
+            if [[ "$LEGACY_MODE" != "true" && "$CURRENT_V6" != "Unavailable" ]]; then
+                CURRENT_PREFIX=$(generate_ipv6_prefix "$CURRENT_V6")
+            fi
+
+            log_info "IP Change Detected:"
+            log_info "IPv6: $CURRENT_V6 Prefix: $CURRENT_PREFIX/$PREFIX_LENGTH IPv4: $CURRENT_V4"
+
+            if [[ -n "$HOSTFQDN" && "$LEGACY_MODE" != "true" ]]; then
+                if [[ "$CURRENT_V6" != "Unavailable" ]]; then
+                    get_or_create_dns_record "$HOSTFQDN" "AAAA" "$CURRENT_V6"
+                else
+                    log_error "Skipping AAAA record for $HOSTFQDN: no valid IPv6 available."
+                fi
+            fi
+
+            if [[ -n "$HOSTFQDN" && "$V4_ENABLED" == "true" ]]; then
+                if [[ "$CURRENT_V4" != "Unavailable" ]]; then
+                    get_or_create_dns_record "$HOSTFQDN" "A" "$CURRENT_V4"
+                else
+                    log_error "Skipping A record for $HOSTFQDN: no valid IPv4 available."
+                fi
+            fi
+
+            if [[ "$CUSTOM_ENABLED" == "true" ]]; then
+                process_custom_records
+            fi
+
+            SUCCESS_COUNT=0
+            log_info "DNS update complete. Sleeping for $REFRESH_MIN minutes."
+        else
+            log_info "No IP change for $((SUCCESS_COUNT * REFRESH_MIN)) minutes."
+        fi
+
+        sleep "$REFRESH"
     done
 }
 
+main
 
-# Main loop to periodically check and update DNS records
-while true; do
-    bashio::cache.flush_all
-
-    # IPv6 handling: Loop through all IPv6 addresses and process the valid one
-    for getv6 in $(bashio::network.ipv6_address); do
-        if [[ "$getv6" != fe80* && "$getv6" != fc* && "$getv6" != fd* && "${legacyMode}" != true ]]; then
-            v6new="${getv6%%/*}"  # Remove the prefix length from the IPv6 address
-            prefixTmp=$(echo "$v6new" | cut -d':' -f1-$hextets)  # Extract the prefix portion of the address
-            nextHextet=$(echo "$v6new" | cut -d':' -f$((hextets + 1)))  # Get the next hextet after the prefix
-            paddedNextHextet=$(printf "%04s" "$nextHextet")  # Pad the hextet with leading zeros if necessary
-            remainder=$((prefixLength % 16))  # Calculate the remainder for the prefix
-
-            # Adjust the prefix based on the remainder (partial hextet handling)
-            if [ "$remainder" -ne 0 ]; then
-                cut_length=$((remainder / 4))
-                prefix="${prefixTmp}:$(echo "$paddedNextHextet" | cut -c1-$cut_length)"
-            else
-                prefix="${prefixTmp}:"
-            fi
-            break  # Stop after the first valid address
-        fi
-    done
-
-    # If no valid IPv6 address is found, set to "Unavailable"
-    if [[ -z "$v6new" ]]; then
-        v6new="Unavailable"
-        prefix="Unavailable"
-    fi
-
-    # Get the public IPv4 address using Cloudflare's trace service
-    getv4=$(curl -s -4 https://one.one.one.one/cdn-cgi/trace | grep 'ip=' | cut -d'=' -f2)
-    if [[ "${getv4}" == *.*.*.* && "${v4Enabled}" == true ]]; then
-        v4new="${getv4}"  # Set the new IPv4 address
-    else
-        v4new="Unavailable"  # Set IPv4 to "Unavailable" if not found or disabled
-    fi
-
-    # If both IPv6 and IPv4 are unavailable, count as failure
-    if [[ "${v6new}" == "Unavailable" && "${v4new}" == "Unavailable" ]]; then
-        successCount=0
-        ((failCount+= 1))  # Increment failure count
-        printf "\nNo Internet Connection detected for $((refreshMin * failCount)) minutes. Trying again in ${refreshMin} minutes!\n+++\n"
-    else
-        # Reset failure count and increment success count
-        failCount=0
-        ((successCount += 1))
-
-        # If IP addresses have changed, update the DNS records
-        if [[ "${v6new}" != "${v6}" || "${v4new}" != "${v4}" ]]; then
-            v6="${v6new}"  # Update stored IPv6 address
-            v4="${v4new}"  # Update stored IPv4 address
-            printf "\n\nYour new public IP config: Prefix: ${prefix} IPv6: ${v6} IPv4: ${v4}\n+++\n"
-
-            # Check and update AAAA (IPv6) record for the main FQDN if configured
-            if [[ -n "${hostfqdn}" && "${legacyMode}" == false && "${v6}" != "Unavailable" ]]; then
-                cf_manage_record "${hostfqdn}" "AAAA" "${v6}" || printf "Error: Failed to update AAAA record for %s\n" "${hostfqdn}" >&2
-                printf "\n+++\n"
-            fi
-
-            # Check and update A (IPv4) record for the main FQDN if configured
-            if [[ -n "${hostfqdn}" && "${v4Enabled}" == true && "${v4}" != "Unavailable" ]]; then
-                cf_manage_record "${hostfqdn}" "A" "${v4}" || printf "Error: Failed to update A record for %s\n" "${hostfqdn}" >&2
-                printf "\n+++\n"
-            fi
-
-            # Update custom DNS records if enabled
-            [[ ${customEnabled} == true ]] && parse_records
-
-            printf "\nUpdated records. Waiting ${refreshMin} minutes until the next update\n+++\n"
-            successCount=0  # Reset success counter after update
-        else
-            # IPs haven't changed, just print a message
-            printf "\nIPs haven't changed since $((refreshMin * successCount)) minutes. Waiting ${refreshMin} minutes until the next update\n"
-            printf "Your public IP config: Prefix: ${prefix} IPv6: ${v6} IPv4: ${v4}\n+++\n"
-        fi
-    fi
-
-    # Wait for the refresh interval before the next check
-    sleep "${refresh}"
-done
 # (C) GitHub\TKtheDEV

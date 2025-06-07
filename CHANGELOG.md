@@ -1,4 +1,7 @@
 # Changelog
+## v4.0.0
+ - Stable using Supervisor API backend
+
 ## 2.1.3
  - More robust backend
  - Fixed weird behaviour when updating and creating records at the same time
