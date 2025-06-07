@@ -1,3 +1,3 @@
 # Changelog
-## 3.3.1
+## v4.0.0
  - Stable using Supervisor API backend

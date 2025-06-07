@@ -43,22 +43,22 @@ log_info() {
     bashio::log.info "$1"
 }
 
-fetch_ipv6_from_supervisor() {
+fetch_ipv6() {
     local response ipv6
     if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
-        log_error "Failed to fetch IPv6 from Supervisor API"
+        log_error "Communication with Supervisor API failed"
         echo "Unavailable"
         return
     fi
 
     if ! ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1); then
-        log_error "Invalid JSON or no usable IPv6 address"
+        log_error "Supervisor returned invalid JSON or no global IPv6"
         echo "Unavailable"
         return
     fi
 
     if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
-        log_error "Supervisor returned invalid or no global IPv6"
+        log_error "Invalid IPv6 address format"
         echo "Unavailable"
     else
         echo "${ipv6%%/*}"
@@ -168,7 +168,7 @@ generate_ipv6_prefix() {
 
 process_custom_records() {
     if [[ -z "$CUSTOM_RECORDS" ]]; then
-        log_info "No custom records defined."
+        log_warning "No custom records defined."
         return
     fi
 
@@ -180,7 +180,7 @@ process_custom_records() {
             if [[ "$CURRENT_V4" != "Unavailable" ]]; then
                 value="$CURRENT_V4"
             else
-                log_warning "Skipping $record_fqdn: no valid IPv4 available."
+                log_error "Skipping A record for $record_fqdn: no valid IPv4 available."
                 continue
             fi
         elif [[ "$record_type" == "AAAA" ]]; then
@@ -188,14 +188,14 @@ process_custom_records() {
                 if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
                     value="${CURRENT_PREFIX}${suffix}"
                 else
-                    log_warning "Skipping $record_fqdn: invalid suffix or unavailable IPv6 prefix."
+                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available or misformed suffix."
                     continue
                 fi
             else
                 if [[ "$CURRENT_V6" != "Unavailable" ]]; then
                     value="$CURRENT_V6"
                 else
-                    log_warning "Skipping $record_fqdn: no valid IPv6 available."
+                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available."
                     continue
                 fi
             fi
@@ -212,7 +212,7 @@ main() {
     while true; do
         local new_v6 new_v4
 
-        if ! new_v6=$(fetch_ipv6_from_supervisor); then new_v6="Unavailable"; fi
+        if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
         if [[ "$V4_ENABLED" == "true" ]]; then
             if ! new_v4=$(fetch_ipv4); then new_v4="Unavailable"; fi
         else
@@ -222,7 +222,7 @@ main() {
         if [[ "$new_v6" == "Unavailable" && "$new_v4" == "Unavailable" ]]; then
             FAIL_COUNT=$((FAIL_COUNT + 1))
             SUCCESS_COUNT=0
-            log_error "No usable IP found since $((REFRESH_MIN * FAIL_COUNT)) minutes. Retry in $REFRESH_MIN minutes."
+            log_error "No usable IP found since $((REFRESH_MIN * FAIL_COUNT)) minutes. Retrying in $REFRESH_MIN minutes."
             sleep "$REFRESH"
             continue
         fi
