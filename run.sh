@@ -203,7 +203,7 @@ process_custom_records() {
             log_error "Unknown record type: $record_type for $record_fqdn. Skipping."
             continue
         fi
-
+        value=${value//[[:space:]]/}
         get_or_create_dns_record "$record_fqdn" "$record_type" "$value"
     done <<< "$CUSTOM_RECORDS"
 }
