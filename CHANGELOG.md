@@ -1,4 +1,7 @@
 # Changelog
+## 4.0.2
+ - Installation bug fixed
+
 ## v4.0.0
  - Stable using Supervisor API backend
 
