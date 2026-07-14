@@ -1,4 +1,7 @@
 # Changelog
+## 4.1.0
+ - Added fallback NAT66/NPTv6 support
+
 ## 4.0.2
  - Installation bug fixed
 

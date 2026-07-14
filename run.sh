@@ -43,31 +43,121 @@ log_info() {
     bashio::log.info "$1"
 }
 
+is_valid_ipv6() {
+    local ip=${1,,}
+    [[ "$ip" == *:* && "$ip" =~ ^[0-9a-f:]+$ ]]
+}
+
+is_gua_ipv6() {
+    local ip=${1,,}
+
+    # Globally routable unicast space is currently 2000::/3.
+    is_valid_ipv6 "$ip" && [[ "$ip" =~ ^[23] ]]
+}
+
+is_ula_ipv6() {
+    local ip=${1,,}
+
+    # Unique-local address space is fc00::/7.
+    is_valid_ipv6 "$ip" && [[ "$ip" =~ ^f[cd] ]]
+}
+
+fetch_cloudflare_trace_ip() {
+    local family=$1
+    local source_address=${2:-}
+    local response ip
+    local -a curl_args=(
+        -sfSL
+        --connect-timeout 10
+        --max-time 20
+        --noproxy "*"
+        "$family"
+    )
+
+    if [[ -n "$source_address" ]]; then
+        # Bind the probe to a specific local source address. This lets us
+        # determine whether a ULA has working NAT66/NPTv6 Internet access.
+        curl_args+=(--interface "$source_address")
+    fi
+
+    if ! response=$(curl "${curl_args[@]}" https://one.one.one.one/cdn-cgi/trace); then
+        return
+    fi
+
+    ip=$(awk -F= '$1 == "ip" { print $2; exit }' <<< "$response" | tr -d '\r')
+    [[ -n "$ip" ]] || return
+
+    printf '%s\n' "$ip"
+}
+
 fetch_ipv6() {
-    local response ipv6
-    if ! response=$(curl -sfSL -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/network/info); then
+    local response addresses address observed
+    local -a gua_addresses=()
+    local -a ula_addresses=()
+
+    if ! response=$(
+        curl -sfSL \
+            -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+            http://supervisor/network/info
+    ); then
         log_error "Communication with Supervisor API failed"
         echo "Unavailable"
         return
     fi
 
-    if ! ipv6=$(jq -r '.data.interfaces[] | select(.primary == true and .ipv6.address != null) | .ipv6.address[] | select((startswith("fe80::") or startswith("fd")) | not)' <<< "$response" | head -n1); then
-        log_error "Supervisor returned invalid JSON or no global IPv6"
+    if ! addresses=$(
+        jq -r '
+            .data.interfaces[]?
+            | select(.primary == true)
+            | .ipv6.address[]?
+        ' <<< "$response"
+    ); then
+        log_error "Supervisor returned invalid JSON or no usable address"
         echo "Unavailable"
         return
     fi
 
-    if [[ -z "$ipv6" || ! "$ipv6" =~ ^[0-9a-fA-F:]+(/[0-9]+)?$ ]]; then
-        log_error "Invalid IPv6 address format"
-        echo "Unavailable"
-    else
-        echo "${ipv6%%/*}"
+    while IFS= read -r address; do
+        address=${address%%/*}
+        address=${address//[[:space:]]/}
+        [[ -n "$address" ]] || continue
+
+        if is_gua_ipv6 "$address"; then
+            gua_addresses+=("$address")
+        elif is_ula_ipv6 "$address"; then
+            ula_addresses+=("$address")
+        fi
+    done <<< "$addresses"
+
+    if (( ${#gua_addresses[@]} > 0 )); then
+        printf '%s\n' "${gua_addresses[0]}"
+        return
     fi
+    
+    for address in "${ula_addresses[@]}"; do
+        if observed=$(fetch_cloudflare_trace_ip -6 "$address") \
+            && is_gua_ipv6 "$observed"; then
+            log_info "No native IPv6 GUA found; ULA $address reaches the Internet as $observed"
+            printf '%s\n' "$observed"
+            return
+        fi
+
+        log_warning "ULA $address could not reach the IPv6 Internet"
+    done
+
+    if (( ${#ula_addresses[@]} > 0 )); then
+        log_error "No native IPv6 GUA found and no ULA had working IPv6 Internet access"
+    else
+        log_error "No usable IPv6 GUA or ULA found on the primary interface"
+    fi
+
+    echo "Unavailable"
 }
 
 fetch_ipv4() {
     local ipv4
-    if ! ipv4=$(curl -sf -4 https://one.one.one.one/cdn-cgi/trace | grep -Eo '^ip=[0-9\.]+' | cut -d= -f2); then
+
+    if ! ipv4=$(fetch_cloudflare_trace_ip -4); then
         log_error "Failed to fetch IPv4 from Cloudflare"
         echo "Unavailable"
         return
@@ -188,7 +278,7 @@ process_custom_records() {
                 if [[ "$CURRENT_PREFIX" != "Unavailable" && "$suffix" =~ ^[0-9a-fA-F:]+$ ]]; then
                     value="${CURRENT_PREFIX}${suffix}"
                 else
-                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available or misformed suffix."
+                    log_error "Skipping AAAA record for $record_fqdn: no valid IPv6 available or malformed suffix."
                     continue
                 fi
             else
@@ -212,7 +302,12 @@ main() {
     while true; do
         local new_v6 new_v4
 
-        if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
+        if [[ "$LEGACY_MODE" == "true" ]]; then
+            new_v6="Unavailable"
+        else
+            if ! new_v6=$(fetch_ipv6); then new_v6="Unavailable"; fi
+        fi
+
         if [[ "$V4_ENABLED" == "true" ]]; then
             if ! new_v4=$(fetch_ipv4); then new_v4="Unavailable"; fi
         else
